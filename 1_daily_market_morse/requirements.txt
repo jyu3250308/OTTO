@@ -1,0 +1,7 @@
+python-dotenv
+requests
+beautifulsoup4
+transformers
+torch
+python-telegram-bot
+APScheduler
