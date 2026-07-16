@@ -1,1 +1,1 @@
-openai\ndotenv
+openai\npython-dotenv
