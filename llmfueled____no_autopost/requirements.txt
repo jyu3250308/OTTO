@@ -1,1 +1,1 @@
-Standard Python Libraries (random, time, sys, typing)
+random, time, sys, typing (standard Python libraries, no external pip installs required)
