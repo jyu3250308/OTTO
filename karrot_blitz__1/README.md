@@ -35,7 +35,7 @@ cd karrot-blitz
 # 🐍 가상 환경 생성
 python -m venv venv
 
-# 🚀 가상 환경 활성화
+# 🚀 가상 환경 활성화 (실행하는 터미널 종류에 따라 다를 수 있습니다)
 # Windows 사용자:
 .\venv\Scripts\activate
 # macOS/Linux 사용자:
@@ -44,77 +44,70 @@ source venv/bin/activate
 # 📦 필요한 라이브러리 설치
 pip install -r requirements.txt
 ```
-> `requirements.txt` 파일이 아직 없다면, 아래의 "3.1. `requirements.txt` 생성" 단계를 먼저 수행한 후 `pip install -r requirements.txt`를 실행해주세요.
+> `requirements.txt` 파일은 프로젝트 루트에 포함되어 있습니다. 만약 파일이 없거나 의존성이 변경되었다면, `pip freeze > requirements.txt` 명령어를 사용하여 새로 생성할 수 있습니다.
 
 #### 3. 환경 변수 설정 (`.env` 파일 생성)
-프로젝트 루트 디렉토리(`.env` 파일이 `karrot_blitz_bot.py`와 같은 위치)에 `.env` 파일을 생성하고 다음 내용을 채워 넣으세요. 각 변수에 대한 상세 설명이 주석으로 제공됩니다.
+프로젝트 루트 디렉토리(`karrot_blitz_bot.py` 파일과 같은 위치)에 `.env` 파일을 생성하고 다음 내용을 채워 넣으세요. 각 변수에 대한 상세 설명이 주석으로 제공됩니다.
 
-##### 3.1. `requirements.txt` 생성 (선택 사항)
-최초 설정 시 또는 의존성이 변경되었을 때, 다음 명령어로 `requirements.txt` 파일을 생성할 수 있습니다.
-```bash
-pip freeze > requirements.txt
-```
-이 프로젝트에서 필요한 핵심 라이브러리들은 다음과 같습니다:
-```
-requests>=2.25.1
-beautifulsoup4>=4.9.3
-python-dotenv>=0.19.0
-```
-`requirements.txt` 파일의 내용을 위와 같이 맞춰주세요.
-
-##### 3.2. `.env` 파일 내용
+##### `.env` 파일 내용 예시:
 ```dotenv
-# 텔레그램 봇 토큰 (필수)
+# ------------------------------------------------------------------------------------
+# Karrot Blitz 봇 설정 (.env)
+# 각 변수에 대한 설명을 읽고 필요에 따라 값을 설정해주세요.
+# ------------------------------------------------------------------------------------
+
+# [필수] 텔레그램 봇 토큰 (Telegram Bot Token)
 # @BotFather에게서 발급받은 봇 토큰을 입력합니다.
 # 예: TELEGRAM_BOT_TOKEN="1234567890:ABCDEFGHIJKLMN_OPQRSTUVWXYZABCDEF"
 TELEGRAM_BOT_TOKEN="YOUR_TELEGRAM_BOT_TOKEN"
 
-# 텔레그램 채팅 ID (필수)
+# [필수] 텔레그램 채팅 ID (Telegram Chat ID)
 # 알림을 받을 개인 채팅 또는 그룹 채팅의 ID를 입력합니다.
-# 봇에게 메시지를 보낸 후 'https://api.telegram.org/bot[YOUR_TELEGRAM_BOT_TOKEN]/getUpdates' URL에서 'chat id'를 확인할 수 있습니다.
+# 봇에게 '/start' 또는 아무 메시지나 보낸 후, 웹 브라우저에서 아래 URL에 접속하여 'chat':{"id":...} 부분을 찾아 숫자로 된 ID를 확인합니다.
+# URL 형식: https://api.telegram.org/bot[YOUR_TELEGRAM_BOT_TOKEN]/getUpdates
 # 예: TELEGRAM_CHAT_ID="-1234567890" (개인 채팅은 일반적으로 양수, 그룹/채널은 음수)
 TELEGRAM_CHAT_ID="YOUR_TELEGRAM_CHAT_ID"
 
-# 당근마켓 검색 키워드 (필수)
+# [필수] 당근마켓 검색 키워드 (Karrot Market Search Keywords)
 # 쉼표(,)로 여러 키워드를 구분하여 입력합니다. 각 키워드는 개별적으로 검색됩니다.
 # 예: "아이패드,맥북프로,에어팟"
-KARROT_KEYWORDS="아이폰,맥북에어,아이패드프로"
+KARROT_KEYWORDS="아이폰15프로,맥북에어m2,아이패드프로m4"
 
-# 당근마켓 검색 기본 URL (선택, 기본값: 전체 당근마켓)
+# [선택] 당근마켓 검색 기본 URL (Karrot Market Base URL)
 # 특정 지역에서만 검색하려면 해당 지역의 URL을 입력합니다.
+# 기본값: 전체 당근마켓 -> https://www.daangn.com
 # 예시: 서울 강남구 -> https://www.daangn.com/regions/seoul-gangnam-gu
-# 전체 당근마켓 -> https://www.daangn.com
 KARROT_BASE_URL="https://www.daangn.com"
 
-# 최소/최대 가격 설정 (선택, 기본값: 0 ~ 999,999,999원 (약 10억))
-# 이 범위 내의 매물만 알림을 받습니다. 단위는 '원'이며 숫자만 입력합니다.
-# 예: 10만원 이상 50만원 이하 -> KARROT_MIN_PRICE=100000, KARROT_MAX_PRICE=500000
+# [선택] 최소 가격 (Minimum Price)
+# 이 가격 이상의 매물만 알림을 받습니다. 단위는 '원'이며 숫자만 입력합니다. (기본값: 0)
 KARROT_MIN_PRICE=100000
+
+# [선택] 최대 가격 (Maximum Price)
+# 이 가격 이하의 매물만 알림을 받습니다. 단위는 '원'이며 숫자만 입력합니다. (기본값: 약 10억)
 KARROT_MAX_PRICE=500000
 
-# 매물 확인 간격 (선택, 기본값: 60초)
+# [선택] 매물 확인 간격 (Check Interval in Seconds)
 # 몇 초마다 당근마켓을 스크래핑할지 설정합니다.
-# ⚠️ 너무 짧게 설정하면 당근마켓 서버에 부담을 주어 IP 차단 위험이 매우 높습니다.
+# ⚠️ 중요: 너무 짧게 설정하면 당근마켓 서버에 부담을 주어 IP 차단 위험이 매우 높습니다.
 # 🚨 최소 30초 이상을 권장하며, 안정적인 운영을 위해 60초 또는 그 이상으로 설정하는 것이 좋습니다.
-CHECK_INTERVAL_SECONDS=30
+# 403 Forbidden 오류가 자주 발생한다면 이 값을 늘려야 합니다.
+CHECK_INTERVAL_SECONDS=60
 ```
 
-*   **`TELEGRAM_BOT_TOKEN` 얻는 방법**: 텔레그램에서 `@BotFather`를 검색하여 봇을 생성하고 발급받은 토큰을 입력합니다.
-*   **`TELEGRAM_CHAT_ID` 얻는 방법**: 생성한 봇에게 아무 메시지나 보낸 다음, 웹 브라우저에서 `https://api.telegram.org/bot[YOUR_TELEGRAM_BOT_TOKEN]/getUpdates` URL에 접속하여 응답 내용 중 `"chat":{"id":...}` 부분에서 숫자로 된 `id` 값을 찾아서 입력합니다. 개인 채팅의 경우 양수, 그룹/채널의 경우 음수 형태를 가집니다.
-
 ### ▶️ 봇 실행
-모든 설정이 완료되었다면, 다음 명령어를 사용하여 봇을 실행합니다.
+모든 설정이 완료되었다면, 가상 환경이 활성화된 상태에서 다음 명령어를 사용하여 봇을 실행합니다.
 
 ```bash
 # 가상 환경이 활성화된 상태에서 실행
 python karrot_blitz_bot.py
 ```
 
-봇이 시작되면 콘솔에 현재 설정과 상세한 매물 확인 로그가 출력됩니다. 새로운 매물이 발견될 때마다 설정된 텔레그램 채팅으로 알림이 전송됩니다. 봇을 중지하려면 `Ctrl+C`를 누르세요. 봇이 종료되기 전에 마지막으로 발견된 매물 목록을 자동으로 저장하여 다음 실행 시 이어서 모니터링할 수 있도록 합니다.
+봇이 시작되면 콘솔에 현재 설정과 상세한 매물 확인 로그가 출력됩니다. 새로운 매물이 발견될 때마다 설정된 텔레그램 채팅으로 알림이 전송됩니다. 봇을 중지하려면 터미널에서 `Ctrl+C`를 누르세요. 봇이 종료되기 전에 마지막으로 발견된 매물 목록을 자동으로 `seen_items.json` 파일에 저장하여 다음 실행 시 이어서 모니터링할 수 있도록 합니다.
 
 ## ⚠️ 주의사항
 *   **과도한 스크래핑 금지**: 당근마켓 서버에 불필요한 부담을 주지 않도록 `CHECK_INTERVAL_SECONDS`를 너무 짧게(예: 30초 미만) 설정하지 마세요. 짧은 간격은 IP 차단이나 서비스 방해로 이어질 수 있습니다. `403 Forbidden` 오류가 자주 발생한다면 간격을 더 늘려야 합니다.
-*   **HTML 구조 변경**: 당근마켓 웹사이트의 HTML 구조가 변경되면 봇이 정상적으로 작동하지 않을 수 있습니다. 이 경우, `karrot_blitz_bot.py` 파일의 `scrape_karrot_market` 함수 내 스크래핑 로직(특히 BeautifulSoup 선택자)을 업데이트해야 합니다.
+*   **HTML 구조 변경**: 당근마켓 웹사이트의 HTML 구조(CSS 선택자)가 변경되면 봇이 정상적으로 작동하지 않을 수 있습니다. 이 경우, `karrot_blitz_bot.py` 파일의 `scrape_karrot_market` 함수 내 스크래핑 로직을 업데이트해야 합니다.
 *   **책임감 있는 사용**: 본 봇은 정보 습득을 돕기 위해 개발되었으며, 불법적이거나 비윤리적인 목적으로 사용될 수 없습니다. 모든 책임은 사용자에게 있습니다.
 
 ## 📄 라이센스
