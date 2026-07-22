@@ -1,7 +1,5 @@
 # Shorts Meeseeks: 1달러 웃음 미션
 
-![Meeseeks Box](https://i.imgur.com/K3U4J7U.png)
-
 ## 🤖 프로젝트 소개
 
 'Shorts Meeseeks: 1달러 웃음 미션'은 유튜브 쇼츠에서 급부상하는 밈과 유머 영상을 AI가 찾아내고 핵심 웃음 포인트를 3줄로 요약하여 Slack 채널에 공유하는 봇입니다. 마치 "Mr. Meeseeks"처럼, 웃음 미션을 완수하고 사라지는 Slack 봇으로, 당신의 1달러짜리 웃음을 책임집니다!
