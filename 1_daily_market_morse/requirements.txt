@@ -1,8 +1,0 @@
-python-dotenv
-requests
-beautifulsoup4
-transformers
-accelerate>=0.20.1
-torch>=2.0.0
-telegram-bot-api
-APScheduler
