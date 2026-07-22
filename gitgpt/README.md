@@ -1,7 +1,5 @@
 # Git잔디GPT: 오또의 자율주행 커밋봇
 
-![Git 잔디밭 이미지](https://raw.githubusercontent.com/ottonew/resources/main/git_grass_gpt_header.png)
-
 매일 텅 빈 깃허브 잔디밭에 지치셨나요? 이제 AI 오또에게 맡기세요! 'Git잔디GPT: 오또의 자율주행 커밋봇'은 당신의 일상 활동(게임, 공부, 낮잠 등)을 개발 활동으로 위장하여 매일 GitHub 잔디를 자동으로 심어주는 똑똑한 커밋 봇입니다. 마치 천재 개발자처럼 보이는 그린 잔디로, $1 벌 준비는 기본!
 
 ## ✨ 주요 기능
