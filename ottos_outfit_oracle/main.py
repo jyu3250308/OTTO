@@ -1,217 +1,157 @@
+# -*- coding: utf-8 -*-
+"""
+옷또입지? 👕 날씨 분석 AI 코디 추천 봇 (v2 — 진짜 날씨로 진짜 카드가 나옵니다!)
+==============================================================================
+무료 공개 날씨 API(open-meteo, 가입·키 불필요!)로 내일 날씨를 실측 조회하고,
+기온·강수 확률에 맞는 코디를 추천해 SNS 공유 가능한 카드 이미지(PNG)로 저장합니다.
+(제작: AI 에이전트 오또 · v2: 유료 API 의존 제거 → 완전 무료 실데이터로 재작성)
+
+사용법: python main.py  (끝!)
+"""
 import os
-import requests
-from dotenv import load_dotenv
-from twilio.rest import Client
+import json
+import datetime
 
-# Load environment variables from .env file
-load_dotenv()
+# ── 위치 설정 (기본: 서울 — 원하는 도시의 위도/경도로 바꿔보세요) ──────────
+LATITUDE, LONGITUDE, CITY_NAME = 37.5665, 126.9780, "서울"
 
-# --- Configuration from Environment Variables ---
-OPENWEATHER_API_KEY = os.getenv("OPENWEATHER_API_KEY")
-CITY_NAME = os.getenv("CITY_NAME", "Seoul") # Default to Seoul if not set
-COUNTRY_CODE = os.getenv("COUNTRY_CODE", "KR") # Default to KR
-TWILIO_ACCOUNT_SID = os.getenv("TWILIO_ACCOUNT_SID")
-TWILIO_AUTH_TOKEN = os.getenv("TWILIO_AUTH_TOKEN")
-TWILIO_PHONE_NUMBER = os.getenv("TWILIO_PHONE_NUMBER")
-RECIPIENT_PHONE_NUMBER = os.getenv("RECIPIENT_PHONE_NUMBER")
+# ── 기온별 코디 추천 규칙 (한국 옷차림 기준표 기반) ────────────────────────
+OUTFIT_RULES = [
+    (28, "민소매·반팔, 반바지, 린넨", "🥵 한여름 모드! 수분 보충 잊지 마세요"),
+    (23, "반팔, 얇은 셔츠, 면바지", "😎 딱 좋은 날씨, 가볍게!"),
+    (20, "얇은 가디건, 긴팔티, 청바지", "🍃 아침저녁 겉옷 하나 챙기면 완벽"),
+    (17, "얇은 니트, 맨투맨, 가디건", "🍂 가을 감성 코디 각"),
+    (12, "자켓, 트렌치코트, 니트", "🧥 겉옷은 필수인 날"),
+    (9,  "코트, 가죽자켓, 히트텍", "🌬️ 바람이 차가워요"),
+    (5,  "울코트, 두꺼운 니트, 목도리", "🧣 단단히 입고 나가세요"),
+    (-99, "패딩, 기모, 목도리, 장갑", "🥶 동장군 출몰! 완전 무장 필수"),
+]
 
-def get_weather_data(city: str, country_code: str, api_key: str) -> dict | None:
-    """
-    OpenWeatherMap API를 사용하여 특정 도시의 내일 날씨 데이터를 가져옵니다.
-    위도/경도 조회 후 One Call API를 사용합니다.
-    """
-    print(f"[날씨 조회] '{city}, {country_code}' 날씨 정보를 가져오는 중...")
-    
-    # 1. 도시 이름으로 위도/경도 조회
-    geo_url = f"http://api.openweathermap.org/geo/1.0/direct?q={city},{country_code}&limit=1&appid={api_key}"
+
+def fetch_tomorrow_weather():
+    """🌐 open-meteo 무료 API로 내일 날씨를 실측 조회합니다 (키 불필요)."""
+    import urllib.request
+    url = (
+        "https://api.open-meteo.com/v1/forecast"
+        f"?latitude={LATITUDE}&longitude={LONGITUDE}"
+        "&daily=temperature_2m_max,temperature_2m_min,precipitation_probability_max"
+        "&timezone=Asia%2FSeoul&forecast_days=2"
+    )
     try:
-        geo_response = requests.get(geo_url)
-        geo_response.raise_for_status() # HTTP 오류 발생 시 예외 발생
-        geo_data = geo_response.json()
+        with urllib.request.urlopen(url, timeout=10) as resp:
+            data = json.loads(resp.read().decode())
+        d = data["daily"]
+        return {
+            "date": d["time"][1],
+            "t_max": d["temperature_2m_max"][1],
+            "t_min": d["temperature_2m_min"][1],
+            "rain_prob": d["precipitation_probability_max"][1],
+            "is_real": True,
+        }
+    except Exception as err:
+        print(f"[옷또입지] 네트워크 조회 실패({err}) → 데모 데이터로 시연합니다.")
+        return {"date": str(datetime.date.today() + datetime.timedelta(days=1)),
+                "t_max": 24.0, "t_min": 17.0, "rain_prob": 30, "is_real": False}
 
-        if not geo_data:
-            print(f"[에러] '{city}, {country_code}'에 대한 지리 정보를 찾을 수 없습니다. 도시 이름과 국가 코드를 확인해주세요.")
-            return None
-        
-        lat = geo_data[0]['lat']
-        lon = geo_data[0]['lon']
-        print(f"[날씨 조회] '{city}'의 위도: {lat}, 경도: {lon} 확인.")
 
-    except requests.exceptions.RequestException as e:
-        print(f"[에러] 지리 정보 조회 중 네트워크 오류 발생: {e}")
-        return None
-    except Exception as e:
-        print(f"[에러] 지리 정보 처리 중 예상치 못한 오류 발생: {e}")
-        return None
+def recommend_outfit(weather):
+    """기온·강수 확률로 코디를 결정합니다."""
+    avg = (weather["t_max"] + weather["t_min"]) / 2
+    for threshold, outfit, comment in OUTFIT_RULES:
+        if avg >= threshold:
+            extra = " + ☂️ 우산 챙기세요!" if weather["rain_prob"] >= 50 else ""
+            return outfit, comment + extra
+    return OUTFIT_RULES[-1][1], OUTFIT_RULES[-1][2]
 
-    # 2. 위도/경도로 내일의 날씨 예보 조회 (One Call API)
-    # exclude=current,minutely,hourly,alerts -> daily만 필요
-    # units=metric -> 섭씨
-    weather_url = f"https://api.openweathermap.org/data/3.0/onecall?lat={lat}&lon={lon}&exclude=current,minutely,hourly,alerts&units=metric&appid={api_key}"
+
+def render_outfit_card(weather, outfit, comment, out_dir="outfit_cards"):
+    """👕 코디 추천을 SNS 공유용 카드 이미지(PNG)로 렌더링합니다."""
     try:
-        weather_response = requests.get(weather_url)
-        weather_response.raise_for_status() # HTTP 오류 발생 시 예외 발생
-        weather_data = weather_response.json()
-
-        # 내일 날씨 (daily 배열의 두 번째 요소, 오늘이 첫 번째 0번 인덱스)
-        if weather_data and 'daily' in weather_data and len(weather_data['daily']) > 1:
-            tomorrow_weather = weather_data['daily'][1]
-            print("[날씨 조회] 내일 날씨 데이터 가져오기 성공.")
-            return {
-                "temp_min": tomorrow_weather['temp']['min'],
-                "temp_max": tomorrow_weather['temp']['max'],
-                "humidity": tomorrow_weather['humidity'],
-                "pop": tomorrow_weather['pop'] * 100, # Probability of precipitation (0-1, convert to %)
-                "weather_desc": tomorrow_weather['weather'][0]['description']
-            }
-        else:
-            print("[에러] 내일 날씨 데이터를 찾을 수 없습니다. API 응답 구조를 확인하세요.")
-            return None
-
-    except requests.exceptions.RequestException as e:
-        print(f"[에러] 날씨 예보 조회 중 네트워크 오류 발생: {e}")
+        from PIL import Image, ImageDraw, ImageFont
+    except ImportError:
+        print("[옷또입지] Pillow 미설치 — 카드 생략 (pip install Pillow 하면 활성화!)")
         return None
-    except Exception as e:
-        print(f"[에러] 날씨 예보 처리 중 예상치 못한 오류 발생: {e}")
+    font_candidates = ["C:/Windows/Fonts/malgunbd.ttf", "C:/Windows/Fonts/malgun.ttf",
+                       "/System/Library/Fonts/AppleSDGothicNeo.ttc",
+                       "/usr/share/fonts/truetype/nanum/NanumGothicBold.ttf"]
+    fp = next((p for p in font_candidates if os.path.exists(p)), None)
+    if not fp:
         return None
 
-def recommend_outfit(weather: dict) -> str:
-    """
-    날씨 데이터를 기반으로 '오또'만의 시그니처 룩을 추천합니다.
-    """
-    if not weather:
-        return "날씨 정보를 가져올 수 없어 옷차림 추천이 어렵습니다. 잠시 후 다시 시도해주세요."
+    # 폰트에 없는 이모지는 □로 깨지므로 카드에서만 제거 (콘솔·텔레그램엔 유지)
+    import re
+    emoji = re.compile(r"[\U00010000-\U0010ffff☀-➿⌀-⏿⭐⬆←-⇿️]")
+    comment = re.sub(r"\s+", " ", emoji.sub("", comment)).strip()
 
-    temp_min = weather['temp_min']
-    temp_max = weather['temp_max']
-    humidity = weather['humidity']
-    pop = weather['pop'] # Probability of precipitation in %
-    weather_desc = weather['weather_desc']
+    W, H = 1080, 1350
+    warm = weather["t_max"] >= 20
+    bg = (255, 244, 214) if warm else (214, 228, 255)   # 따뜻하면 크림, 추우면 하늘색
+    fg = (45, 42, 38)
+    img = Image.new("RGB", (W, H), bg)
+    draw = ImageDraw.Draw(img)
+    f_big = ImageFont.truetype(fp, 96)
+    f_mid = ImageFont.truetype(fp, 54)
+    f_body = ImageFont.truetype(fp, 46)
+    f_small = ImageFont.truetype(fp, 30)
 
-    print(f"[옷차림 추천] 내일 날씨: 최저 {temp_min:.1f}°C, 최고 {temp_max:.1f}°C, 습도 {humidity}%, 강수확률 {pop:.1f}% ({weather_desc})")
+    def center(text, font, y, fill):
+        w = draw.textbbox((0, 0), text, font=font)[2]
+        draw.text(((W - w) // 2, y), text, font=font, fill=fill)
 
-    outfit = []
-    accessories = []
-    
-    avg_temp = (temp_min + temp_max) / 2
+    center(f"{CITY_NAME}, 내일 뭐 입지?", f_mid, 120, fg)
+    center(f"{weather['t_min']:.0f}° ~ {weather['t_max']:.0f}°", f_big, 230, (255, 120, 40) if warm else (40, 90, 220))
+    center(f"강수 확률 {weather['rain_prob']}%", f_mid, 380, fg)
+    draw.line([(190, 500), (W - 190, 500)], fill=fg, width=3)
+    center("오또의 추천 코디", f_mid, 560, fg)
+    # 코디 목록 (여러 줄)
+    y = 660
+    for item in outfit.split(", "):
+        center(f"· {item}", f_body, y, fg)
+        y += 70
+    center(comment, f_body, y + 40, (200, 60, 60) if "우산" in comment else fg)
+    center(f"{weather['date']} · 옷또입지 (실측: open-meteo)" if weather["is_real"]
+           else f"{weather['date']} · 옷또입지 (데모 데이터)", f_small, H - 100, (120, 115, 105))
 
-    # --- Temperature-based recommendations ---
-    if avg_temp < 5:
-        outfit.append("롱패딩, 두꺼운 코트")
-        outfit.append("히트텍, 울 스웨터, 기모 바지")
-        accessories.append("목도리, 장갑, 털모자")
-        main_rec = "아주 추운 날씨예요. 단단히 무장하세요!"
-    elif 5 <= avg_temp < 10:
-        outfit.append("겨울 코트, 경량 패딩")
-        outfit.append("니트, 기모 맨투맨, 청바지")
-        accessories.append("얇은 목도리, 장갑")
-        main_rec = "쌀쌀한 날씨입니다. 따뜻하게 입으세요."
-    elif 10 <= avg_temp < 15:
-        outfit.append("트렌치코트, 자켓, 가디건")
-        outfit.append("맨투맨, 후드티, 얇은 니트, 청바지/면바지")
-        main_rec = "일교차가 클 수 있어요. 겉옷을 꼭 챙기세요."
-    elif 15 <= avg_temp < 20:
-        outfit.append("얇은 가디건, 바람막이, 맨투맨")
-        outfit.append("긴팔 티셔츠, 청바지/슬랙스")
-        main_rec = "활동하기 좋은 쾌적한 날씨입니다. 가벼운 겉옷도 좋아요."
-    elif 20 <= avg_temp < 25:
-        outfit.append("반팔 티셔츠, 얇은 셔츠")
-        outfit.append("반바지, 면바지, 얇은 긴팔")
-        main_rec = "초여름 날씨예요. 시원하고 가볍게 입으세요."
-    else: # avg_temp >= 25
-        outfit.append("민소매, 반팔 티셔츠")
-        outfit.append("반바지, 시원한 소재의 하의")
-        main_rec = "무더운 한여름 날씨입니다. 자외선 차단에 신경 쓰고, 통풍이 잘 되는 옷을 추천해요."
+    os.makedirs(out_dir, exist_ok=True)
+    path = os.path.join(out_dir, f"outfit_{weather['date']}.png")
+    img.save(path, "PNG")
+    return path
 
-    # --- Precipitation considerations ---
-    if pop > 80:
-        accessories.append("강한 비가 예상되니 우산과 방수 외투는 필수!")
-        main_rec += " (🌧️ 폭우 대비 필수!)"
-    elif pop > 50:
-        accessories.append("비 올 확률이 높아요. 우산이나 가벼운 방수 자켓을 챙기세요.")
-        main_rec += " (☔ 비 대비!)"
-    elif pop > 20:
-        accessories.append("혹시 모를 비에 대비해 작은 우산을 챙기면 좋아요.")
-        main_rec += " (💧 소나기 주의!)"
 
-    # --- Humidity considerations ---
-    if humidity > 80 and avg_temp > 20:
-        main_rec += " 습도가 높아 끈적하게 느껴질 수 있어요. 통풍 잘 되는 소재의 옷이 좋아요."
-    elif humidity < 40 and avg_temp < 15:
-        main_rec += " 공기가 건조할 수 있으니 보습에 신경 써주세요."
-        
-    final_recommendation = f"✨ 오또의 내일 코디 ✨\n\n"
-    final_recommendation += f"🌡️ 예상 온도: 최저 {temp_min:.1f}°C, 최고 {temp_max:.1f}°C\n"
-    final_recommendation += f"💧 강수 확률: {pop:.1f}%\n"
-    final_recommendation += f"💨 습도: {humidity}%\n\n"
-    final_recommendation += f"👉 추천 옷차림: {', '.join(outfit)}\n"
-    if accessories:
-        final_recommendation += f"➕ 기타: {', '.join(accessories)}\n"
-    final_recommendation += f"\n💡 오또의 한마디: {main_rec}"
-    final_recommendation += "\n\n#옷또입지 #날씨코디 #오또의선택"
-    
-    return final_recommendation
-
-def send_sms(to_number: str, message: str) -> bool:
-    """
-    Twilio를 사용하여 SMS 메시지를 전송합니다.
-    """
-    if not all([TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_PHONE_NUMBER, to_number]):
-        print("[에러] Twilio SMS 발송에 필요한 환경 변수 (SID, TOKEN, 발신 번호, 수신 번호) 중 일부가 설정되지 않았습니다.")
-        return False
-
+def send_telegram(message):
+    """(옵션) 텔레그램 발송 — 토큰 없으면 조용히 생략."""
+    token, chat_id = os.environ.get("TELEGRAM_BOT_TOKEN"), os.environ.get("TELEGRAM_CHAT_ID")
+    if not token or not chat_id:
+        return
     try:
-        client = Client(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN)
-        message = client.messages.create(
-            to=to_number,
-            from_=TWILIO_PHONE_NUMBER,
-            body=message
-        )
-        print(f"[SMS 발송] 메시지 성공적으로 전송! SID: {message.sid}")
-        return True
-    except Exception as e:
-        print(f"[에러] SMS 발송 실패: {e}")
-        print(f"Twilio 설정 확인: ACCOUNT_SID={TWILIO_ACCOUNT_SID}, FROM_NUMBER={TWILIO_PHONE_NUMBER}, TO_NUMBER={to_number}")
-        return False
+        import urllib.request, urllib.parse
+        data = urllib.parse.urlencode({"chat_id": chat_id, "text": message}).encode()
+        urllib.request.urlopen(
+            urllib.request.Request(f"https://api.telegram.org/bot{token}/sendMessage", data=data), timeout=10)
+        print("[옷또입지] 텔레그램 발송 완료! 📨")
+    except Exception as err:
+        print(f"[옷또입지] 텔레그램 발송 실패(무시): {err}")
+
 
 def main():
-    """
-    '옷또입지?' 프로젝트의 메인 실행 함수.
-    날씨를 분석하고 옷차림을 추천하여 SMS로 전송합니다.
-    """
-    print("--- 🤖 오또의 옷또입지? 프로젝트 시작 ---")
+    print("👕 옷또입지 기동 — 내일의 날씨를 실측 조회합니다... (v2: 무료 실데이터!)")
+    weather = fetch_tomorrow_weather()
+    src = "실측" if weather["is_real"] else "데모"
+    print(f" - [{src}] {weather['date']} {CITY_NAME}: {weather['t_min']}°~{weather['t_max']}°, 강수 {weather['rain_prob']}%")
 
-    # 1. 환경 변수 확인
-    if not OPENWEATHER_API_KEY:
-        print("[오류] OPENWEATHER_API_KEY가 설정되지 않았습니다. .env 파일을 확인해주세요.")
-        return
-    if not TWILIO_ACCOUNT_SID or not TWILIO_AUTH_TOKEN or not TWILIO_PHONE_NUMBER or not RECIPIENT_PHONE_NUMBER:
-        print("[오류] Twilio 관련 환경 변수 (TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_PHONE_NUMBER, RECIPIENT_PHONE_NUMBER) 중 일부가 설정되지 않았습니다. .env 파일을 확인해주세요.")
-        return
-    if not CITY_NAME or not COUNTRY_CODE:
-        print("[경고] CITY_NAME 또는 COUNTRY_CODE가 설정되지 않아 기본값 (Seoul, KR)을 사용합니다.")
+    outfit, comment = recommend_outfit(weather)
+    print(f"\n👕 오또의 추천 코디: {outfit}")
+    print(f"💬 {comment}\n")
 
+    card = render_outfit_card(weather, outfit, comment)
+    if card:
+        print(f"🖼️ 코디 카드 저장 완료 -> {card} (SNS에 바로 공유 가능!)")
+    send_telegram(f"👕 [옷또입지] {weather['date']} {CITY_NAME} {weather['t_min']}°~{weather['t_max']}°\n추천: {outfit}\n{comment}")
+    print("✅ 완료! 스케줄러에 등록하면 매일 저녁 내일 코디가 자동 도착합니다.")
 
-    # 2. 내일 날씨 데이터 가져오기
-    weather_data = get_weather_data(CITY_NAME, COUNTRY_CODE, OPENWEATHER_API_KEY)
-    if not weather_data:
-        print("[실패] 날씨 정보를 가져오지 못했습니다. 프로그램 종료.")
-        return
-
-    # 3. AI 기반 옷차림 추천 생성
-    outfit_recommendation = recommend_outfit(weather_data)
-    print("\n--- 오또의 옷차림 추천 내용 ---")
-    print(outfit_recommendation)
-    print("-----------------------------\n")
-
-    # 4. SMS 알림 서비스 전송
-    print(f"[SMS 발송] 수신자: {RECIPIENT_PHONE_NUMBER} 에게 SMS 전송 시도...")
-    if send_sms(RECIPIENT_PHONE_NUMBER, outfit_recommendation):
-        print("[성공] '옷또입지?' 알림이 성공적으로 전송되었습니다.")
-    else:
-        print("[실패] '옷또입지?' 알림 SMS 전송에 실패했습니다. 로그를 확인해주세요.")
-    
-    print("--- 🤖 오또의 옷또입지? 프로젝트 종료 ---")
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except KeyboardInterrupt:
+        print("\n[옷또입지] 사용자에 의해 중단되었습니다.")
