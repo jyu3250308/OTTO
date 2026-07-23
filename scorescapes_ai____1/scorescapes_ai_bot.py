@@ -42,76 +42,126 @@ SCORES = {
 }
 
 
-def note_to_color(pitch, palette_shift):
-    """음높이를 12음계 기반 색상(Hue)으로 변환합니다. 팔레트 시프트로 매번 다른 색감."""
-    hue = ((pitch % 12) / 12.0 + palette_shift) % 1.0
-    r, g, b = colorsys.hsv_to_rgb(hue, 0.65, 0.95)
-    return int(r * 255), int(g * 255), int(b * 255)
+# ── 큐레이션 팔레트 (배경, 음표 색상들) — 랜덤 HSV 대신 엄선된 조합 ────────
+PALETTES = [
+    ("Aurora",  (6, 8, 26),  [(94, 234, 212), (129, 140, 248), (244, 114, 182), (56, 189, 248), (167, 243, 208)]),
+    ("Ember",   (24, 8, 18), [(251, 146, 60), (250, 204, 21), (248, 113, 113), (232, 121, 249), (253, 224, 71)]),
+    ("Moonlit", (10, 12, 32), [(148, 163, 255), (196, 181, 253), (125, 211, 252), (226, 232, 240), (110, 231, 183)]),
+    ("Rosegold", (20, 10, 16), [(253, 164, 175), (251, 191, 36), (244, 194, 194), (255, 228, 196), (240, 171, 252)]),
+]
 
 
 def render_scorescape(title, score, out_dir="artworks"):
-    """🎨 핵심 엔진: 음표 시퀀스를 실제 제너러티브 아트 PNG로 렌더링합니다."""
+    """
+    🎨 핵심 엔진 v2.1: 음표 시퀀스를 '포스터급' 제너러티브 아트로 렌더링합니다.
+    - 2배 슈퍼샘플링(안티앨리어싱) → 인쇄해도 매끈
+    - 방사형 그라데이션 우주 배경 + 성운(블러) 레이어
+    - 멜로디가 황금 나선을 따라 흐르며, 음표마다 진짜 글로우(가우시안 블러)
+    """
     try:
-        from PIL import Image, ImageDraw, ImageFont
+        from PIL import Image, ImageDraw, ImageFont, ImageFilter
     except ImportError:
         print("[ScoreScapes] Pillow가 필요합니다: pip install Pillow")
         return None
 
+    import math
     notes = score["notes"]
-    W, H = 1080, 1350
-    palette_shift = random.random()          # 실행마다 다른 색감 → 매번 새로운 작품
-    img = Image.new("RGB", (W, H), (18, 18, 32))
+    S = 2                                   # 슈퍼샘플링 배율
+    W, H = 1080 * S, 1350 * S
+    pname, bg, colors = random.choice(PALETTES)
+
+    # 1) 방사형 그라데이션 배경 (중심이 은은히 밝은 심우주)
+    img = Image.new("RGB", (W, H), bg)
+    draw = ImageDraw.Draw(img)
+    cx, cy = W // 2, int(H * 0.46)
+    max_r = int(math.hypot(W, H) * 0.7)
+    center_boost = 26
+    for r in range(max_r, 0, -6 * S):
+        k = r / max_r
+        col = tuple(int(bg[i] + center_boost * (1 - k)) for i in range(3))
+        draw.ellipse([cx - r, cy - r, cx + r, cy + r], fill=col)
+
+    # 2) 성운 레이어 — 큰 색 얼룩을 강하게 블러 (저알파 무드 조명)
+    nebula = Image.new("RGB", (W, H), (0, 0, 0))
+    ndraw = ImageDraw.Draw(nebula)
+    for _ in range(6):
+        nc = random.choice(colors)
+        nx, ny = random.randint(0, W), random.randint(0, H)
+        nr = random.randint(180 * S, 380 * S)
+        ndraw.ellipse([nx - nr, ny - nr, nx + nr, ny + nr],
+                      fill=tuple(int(c * 0.22) for c in nc))
+    nebula = nebula.filter(ImageFilter.GaussianBlur(120 * S))
+    img = Image.blend(img, Image.blend(img, nebula, 0.5), 0.9)
+    # 밝은 성분만 더하는 효과를 위해 스크린 합성 근사
+    from PIL import ImageChops
+    img = ImageChops.screen(img, nebula)
     draw = ImageDraw.Draw(img)
 
-    total_beats = sum(d for _, d in notes)
+    # 3) 멜로디 나선 좌표 계산 (시간→회전각, 음높이→반지름 변조)
     pitches = [p for p, _ in notes]
     p_min, p_max = min(pitches), max(pitches)
+    total = len(notes)
+    pts, sizes, cols = [], [], []
+    spiral_turns = 1.9
+    r_in, r_out = 90 * S, 430 * S
+    for i, (pitch, dur) in enumerate(notes):
+        t = i / max(1, total - 1)
+        ang = -math.pi / 2 + t * spiral_turns * 2 * math.pi
+        p_norm = (pitch - p_min) / max(1, (p_max - p_min))
+        radius = r_in + (r_out - r_in) * t + (p_norm - 0.5) * 70 * S
+        x = cx + radius * math.cos(ang)
+        y = cy + radius * math.sin(ang) * 0.92
+        pts.append((x, y))
+        sizes.append((10 + dur * 9) * S)
+        cols.append(colors[pitch % len(colors)])
 
-    margin_x, area_top, area_bot = 110, 220, 1050
-    usable_w = W - margin_x * 2
+    # 4) 글로우 레이어 — 음표를 굵게 찍고 가우시안 블러 → 진짜 빛망울
+    glow = Image.new("RGB", (W, H), (0, 0, 0))
+    gdraw = ImageDraw.Draw(glow)
+    for i in range(len(pts) - 1):
+        gdraw.line([pts[i], pts[i + 1]], fill=tuple(int(c * 0.5) for c in cols[i]), width=6 * S)
+    for (x, y), r, c in zip(pts, sizes, cols):
+        gdraw.ellipse([x - r * 1.7, y - r * 1.7, x + r * 1.7, y + r * 1.7], fill=c)
+    glow = glow.filter(ImageFilter.GaussianBlur(16 * S))
+    img = ImageChops.screen(img, glow)
+    draw = ImageDraw.Draw(img)
 
-    # 1) 배경 별가루 (곡마다 다른 우주)
-    for _ in range(60):
+    # 5) 크리스프 코어 — 선명한 음표 알맹이 + 흰 하이라이트
+    for (x, y), r, c in zip(pts, sizes, cols):
+        draw.ellipse([x - r, y - r, x + r, y + r], fill=c)
+        hr = r * 0.38
+        draw.ellipse([x - hr - r * 0.18, y - hr - r * 0.18, x + hr - r * 0.18, y + hr - r * 0.18],
+                     fill=tuple(min(255, int(cc + 110)) for cc in c))
+
+    # 6) 별가루
+    for _ in range(140):
         sx, sy = random.randint(0, W), random.randint(0, H)
-        draw.ellipse([sx, sy, sx + 3, sy + 3], fill=(60, 60, 90))
+        b = random.randint(70, 130)
+        draw.ellipse([sx, sy, sx + 2 * S, sy + 2 * S], fill=(b, b, int(b * 1.15)))
 
-    # 2) 음표 위치 계산 + 멜로디 연결선
-    points, t = [], 0
-    for pitch, dur in notes:
-        x = margin_x + int(usable_w * (t + dur / 2) / total_beats)
-        y = area_bot - int((area_bot - area_top) * (pitch - p_min) / max(1, (p_max - p_min)))
-        points.append((x, y))
-        t += dur
-    for i in range(len(points) - 1):
-        draw.line([points[i], points[i + 1]], fill=(70, 70, 100), width=3)
-
-    # 3) 음표 원 (크기=음길이, 색=음높이) + 은은한 글로우
-    for idx, (pitch, dur) in enumerate(notes):
-        x, y = points[idx]
-        r = 18 + dur * 16
-        color = note_to_color(pitch, palette_shift)
-        glow = tuple(int(c * 0.35) for c in color)
-        draw.ellipse([x - r - 8, y - r - 8, x + r + 8, y + r + 8], fill=glow)
-        draw.ellipse([x - r, y - r, x + r, y + r], fill=color)
-
-    # 4) 타이틀 각인
+    # 7) 포스터 타이포그래피 (하단 미니멀)
     font_candidates = ["C:/Windows/Fonts/malgunbd.ttf", "C:/Windows/Fonts/malgun.ttf",
                        "/System/Library/Fonts/AppleSDGothicNeo.ttc",
                        "/usr/share/fonts/truetype/nanum/NanumGothicBold.ttf"]
     fp = next((p for p in font_candidates if os.path.exists(p)), None)
     if fp:
-        f_title = ImageFont.truetype(fp, 52)
-        f_sub = ImageFont.truetype(fp, 30)
+        f_title = ImageFont.truetype(fp, 44 * S)
+        f_sub = ImageFont.truetype(fp, 24 * S)
         tw = draw.textbbox((0, 0), title, font=f_title)[2]
-        draw.text(((W - tw) // 2, 70), title, font=f_title, fill=(255, 228, 0))
-        sub = f"{score['composer']} · ScoreScapes AI"
+        ty = H - 170 * S
+        draw.line([(cx - 90 * S, ty - 24 * S), (cx + 90 * S, ty - 24 * S)],
+                  fill=(200, 200, 220), width=2 * S)
+        draw.text(((W - tw) // 2, ty), title, font=f_title, fill=(235, 235, 245))
+        sub = f"{score['composer']}  ·  {pname} palette  ·  ScoreScapes AI"
         sw = draw.textbbox((0, 0), sub, font=f_sub)[2]
-        draw.text(((W - sw) // 2, 140), sub, font=f_sub, fill=(150, 150, 180))
+        draw.text(((W - sw) // 2, ty + 62 * S), sub, font=f_sub, fill=(150, 150, 175))
 
+    # 8) 다운샘플(안티앨리어싱) 후 저장 — 인쇄용은 원본 크기도 함께
+    final = img.resize((1080, 1350), Image.Resampling.LANCZOS)
     os.makedirs(out_dir, exist_ok=True)
     safe = "".join(c for c in title if c.isalnum() or c == " ").replace(" ", "_")
     path = os.path.join(out_dir, f"scorescape_{safe}_{datetime.date.today().isoformat()}_{random.randint(100, 999)}.png")
-    img.save(path, "PNG")
+    final.save(path, "PNG")
     return path
 
 
