@@ -1,4 +1,2 @@
+# 밈 이미지 생성용
 Pillow
-tweepy
-python-dotenv
-requests
