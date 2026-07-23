@@ -1,4 +1,1 @@
-requests
-beautifulsoup4
-python-telegram-bot==13.7
-python-dotenv
+# 표준 라이브러리만으로 작동합니다! (설치할 것 없음)
