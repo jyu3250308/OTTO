@@ -1,133 +1,137 @@
+# -*- coding: utf-8 -*-
+"""
+ScoreScapes AI: 악보 한 장, 1달러 예술 🎼🎨 (v2 — 진짜로 그림이 나옵니다!)
+========================================================================
+퍼블릭 도메인 명곡의 실제 음표 데이터(음높이·길이)를 색·좌표·곡선으로 변환해
+세상에 하나뿐인 제너러티브 아트(PNG)를 실제로 렌더링하는 봇입니다.
+(제작: AI 에이전트 오또 · v2: 시뮬레이션 → 실제 아트 생성 엔진으로 전면 재작성)
+
+- 음높이(pitch) → 색상(Hue)과 세로 위치
+- 음길이(duration) → 원의 크기
+- 시간 흐름 → 가로 흐름 + 연결 곡선
+- 실행할 때마다 팔레트가 달라져 매번 다른 작품이 나옵니다
+"""
+import os
 import random
-import time
+import datetime
+import colorsys
 
-# --- Mocking Data and External Services ---
-
-# Mock Public Domain Score Library
-# In a real scenario, this would be scraped or retrieved from a music library API.
-MOCK_PUBLIC_DOMAIN_SCORES = [
-    {
-        "title": "Moonlight Sonata (1st Mvt)",
-        "composer": "Ludwig van Beethoven",
-        "era": "Romantic",
-        "aesthetic_phrases": [
-            "Adagio sostenuto, E minor",
-            "Tranquil arpeggios, C# minor",
-            "Melancholy theme, E major resolution"
-        ]
+# ── 퍼블릭 도메인 명곡의 실제 도입부 음표 (MIDI 음높이, 길이[박]) ─────────
+SCORES = {
+    "Moonlight Sonata": {
+        "composer": "L. v. Beethoven",
+        "notes": [(56, 1), (61, 1), (64, 1), (56, 1), (61, 1), (64, 1),
+                  (56, 1), (61, 1), (64, 1), (57, 1), (61, 1), (64, 1),
+                  (57, 1), (62, 1), (66, 1), (56, 1), (62, 1), (64, 1)],
     },
-    {
-        "title": "Prelude in C Major (WTK Book I)",
-        "composer": "Johann Sebastian Bach",
-        "era": "Baroque",
-        "aesthetic_phrases": [
-            "Harmonious arpeggio, C major",
-            "Flowing chords, G major transition",
-            "Meditative repetition, C major"
-        ]
+    "Prelude in C (WTK I)": {
+        "composer": "J. S. Bach",
+        "notes": [(60, 1), (64, 1), (67, 1), (72, 1), (76, 1), (67, 1), (72, 1), (76, 1),
+                  (60, 1), (62, 1), (69, 1), (74, 1), (77, 1), (69, 1), (74, 1), (77, 1)],
     },
-    {
-        "title": "Gymnop\u00e9die No. 1",
-        "composer": "Erik Satie",
-        "era": "Modern (Early)",
-        "aesthetic_phrases": [
-            "Slow and melancholic melody, D major",
-            "Sparse accompaniment, A minor feel",
-            "Dreamlike harmonies, G major"
-        ]
+    "Gymnopedie No.1": {
+        "composer": "E. Satie",
+        "notes": [(66, 3), (69, 1), (68, 1), (66, 1), (61, 2), (62, 3),
+                  (66, 1), (64, 1), (62, 1), (59, 2), (57, 4)],
     },
-    {
-        "title": "Clair de Lune",
-        "composer": "Claude Debussy",
-        "era": "Impressionist",
-        "aesthetic_phrases": [
-            "Languid opening, Db major",
-            "Floating arpeggios, B minor influence",
-            "Serene and expressive theme, Db major"
-        ]
-    }
-]
+    "Arirang": {
+        "composer": "Korean Folk Song",
+        "notes": [(64, 2), (67, 1), (69, 2), (67, 1), (69, 1), (72, 2),
+                  (69, 1), (67, 1), (64, 2), (62, 1), (60, 2), (62, 1), (64, 4)],
+    },
+}
 
-def mock_scan_and_select_phrase():
-    """
-    Mocks the process of scanning public domain scores and selecting
-    a aesthetically pleasing musical phrase.
-    In a real system, this would involve music information retrieval (MIR) AI.
-    """
-    print(">> [ScoreScapes AI] Scanning public domain score library for aesthetic phrases...")
-    time.sleep(0.5) # Simulate processing time
-    
-    score = random.choice(MOCK_PUBLIC_DOMAIN_SCORES)
-    phrase = random.choice(score["aesthetic_phrases"])
-    
-    selected_info = {
-        "title": score["title"],
-        "composer": score["composer"],
-        "phrase": phrase
-    }
-    print(f">> [ScoreScapes AI] Selected phrase: '{phrase}' from '{score['title']}' by {score['composer']}")
-    return selected_info
 
-def mock_generate_artwork(phrase_info):
-    """
-    Mocks the AI generative art process based on a musical phrase.
-    In a real system, this would interface with a Stable Diffusion/DALLE-like API.
-    """
-    print(f">> [ScoreScapes AI] Generating AI artwork for: '{phrase_info['phrase']}'...")
-    time.sleep(1) # Simulate AI generation time
-    
-    # Simple deterministic "artwork" string for mocking
-    artwork_style = random.choice(["Impressionistic", "Baroque-revival", "Surreal", "Vintage"])
-    artwork_description = (
-        f"{artwork_style} digital painting inspired by "
-        f"'{phrase_info['phrase']}' from {phrase_info['composer']}'s '{phrase_info['title']}'. "
-        f"Features {random.choice(['soft hues', 'bold strokes', 'ethereal light'])} and "
-        f"a {random.choice(['dreamy', 'melancholic', 'uplifting'])} mood."
-    )
-    # The URL needs to be unique for mocking. Use abs(hash) for consistency in mock tests.
-    mock_artwork_url = f"https://mock-ai-art-generator.com/art/{abs(hash(artwork_description)) % 10000}"
-    
-    print(f">> [ScoreScapes AI] AI artwork generated. Description: '{artwork_description}'")
-    return {"description": artwork_description, "url": mock_artwork_url}
+def note_to_color(pitch, palette_shift):
+    """음높이를 12음계 기반 색상(Hue)으로 변환합니다. 팔레트 시프트로 매번 다른 색감."""
+    hue = ((pitch % 12) / 12.0 + palette_shift) % 1.0
+    r, g, b = colorsys.hsv_to_rgb(hue, 0.65, 0.95)
+    return int(r * 255), int(g * 255), int(b * 255)
 
-def mock_publish_to_micro_store(artwork_data):
-    """
-    Mocks publishing the generated artwork to a micro-store (e.g., Etsy, Gumroad).
-    In a real system, this would use platform-specific APIs.
-    """
-    print(f">> [ScoreScapes AI] Publishing artwork to micro-store...")
-    time.sleep(0.7) # Simulate API call time
-    
-    product_name = f"ScoreScapes AI Art: {artwork_data['description'][:50]}..."
-    mock_product_url = f"https://mock-etsy.com/product/{abs(hash(artwork_data['url'])) % 10000}"
-    
-    print(f">> [ScoreScapes AI] Artwork published! Product URL: {mock_product_url}")
-    return {"product_name": product_name, "product_url": mock_product_url}
 
-# --- Main Bot Logic ---
-
-def run_scorescapes_ai():
-    """
-    Main function to run the ScoreScapes AI pipeline.
-    """
-    print("--- ScoreScapes AI: \uc545\ubcf4 \ud55c \uc7a5, 1\ub2ec\ub7ec \uc608\uc220 \ubd27 \uc2dc\uc791 ---")
+def render_scorescape(title, score, out_dir="artworks"):
+    """🎨 핵심 엔진: 음표 시퀀스를 실제 제너러티브 아트 PNG로 렌더링합니다."""
     try:
-        # Step 1: Scan and select an aesthetic musical phrase
-        selected_phrase = mock_scan_and_select_phrase()
-        
-        # Step 2: Generate AI artwork based on the phrase
-        generated_artwork = mock_generate_artwork(selected_phrase)
-        
-        # Step 3: Publish the generated artwork to a micro-store
-        published_product = mock_publish_to_micro_store(generated_artwork)
-        
-        print("\\n--- \ud30c\uc774\ud504\ub77c\uc778 \uc644\ub8cc! ---")
-        print(f"** \ucd5c\uc885 \uacb0\uacfc: '{published_product['product_name']}' **")
-        print(f"** \ud310\ub9e4 \ub9c1\ud06c: {published_product['product_url']} **")
-        print("** \uc544\ud2b8\uc6cc\ud06c \ubbf8\ub9ac\ubcf4\uae30 (Mock): ", generated_artwork['url'], " **")
-        
-    except Exception as e:
-        print(f"!!! [ScoreScapes AI Error] An unexpected error occurred: {e}")
+        from PIL import Image, ImageDraw, ImageFont
+    except ImportError:
+        print("[ScoreScapes] Pillow가 필요합니다: pip install Pillow")
+        return None
+
+    notes = score["notes"]
+    W, H = 1080, 1350
+    palette_shift = random.random()          # 실행마다 다른 색감 → 매번 새로운 작품
+    img = Image.new("RGB", (W, H), (18, 18, 32))
+    draw = ImageDraw.Draw(img)
+
+    total_beats = sum(d for _, d in notes)
+    pitches = [p for p, _ in notes]
+    p_min, p_max = min(pitches), max(pitches)
+
+    margin_x, area_top, area_bot = 110, 220, 1050
+    usable_w = W - margin_x * 2
+
+    # 1) 배경 별가루 (곡마다 다른 우주)
+    for _ in range(60):
+        sx, sy = random.randint(0, W), random.randint(0, H)
+        draw.ellipse([sx, sy, sx + 3, sy + 3], fill=(60, 60, 90))
+
+    # 2) 음표 위치 계산 + 멜로디 연결선
+    points, t = [], 0
+    for pitch, dur in notes:
+        x = margin_x + int(usable_w * (t + dur / 2) / total_beats)
+        y = area_bot - int((area_bot - area_top) * (pitch - p_min) / max(1, (p_max - p_min)))
+        points.append((x, y))
+        t += dur
+    for i in range(len(points) - 1):
+        draw.line([points[i], points[i + 1]], fill=(70, 70, 100), width=3)
+
+    # 3) 음표 원 (크기=음길이, 색=음높이) + 은은한 글로우
+    for idx, (pitch, dur) in enumerate(notes):
+        x, y = points[idx]
+        r = 18 + dur * 16
+        color = note_to_color(pitch, palette_shift)
+        glow = tuple(int(c * 0.35) for c in color)
+        draw.ellipse([x - r - 8, y - r - 8, x + r + 8, y + r + 8], fill=glow)
+        draw.ellipse([x - r, y - r, x + r, y + r], fill=color)
+
+    # 4) 타이틀 각인
+    font_candidates = ["C:/Windows/Fonts/malgunbd.ttf", "C:/Windows/Fonts/malgun.ttf",
+                       "/System/Library/Fonts/AppleSDGothicNeo.ttc",
+                       "/usr/share/fonts/truetype/nanum/NanumGothicBold.ttf"]
+    fp = next((p for p in font_candidates if os.path.exists(p)), None)
+    if fp:
+        f_title = ImageFont.truetype(fp, 52)
+        f_sub = ImageFont.truetype(fp, 30)
+        tw = draw.textbbox((0, 0), title, font=f_title)[2]
+        draw.text(((W - tw) // 2, 70), title, font=f_title, fill=(255, 228, 0))
+        sub = f"{score['composer']} · ScoreScapes AI"
+        sw = draw.textbbox((0, 0), sub, font=f_sub)[2]
+        draw.text(((W - sw) // 2, 140), sub, font=f_sub, fill=(150, 150, 180))
+
+    os.makedirs(out_dir, exist_ok=True)
+    safe = "".join(c for c in title if c.isalnum() or c == " ").replace(" ", "_")
+    path = os.path.join(out_dir, f"scorescape_{safe}_{datetime.date.today().isoformat()}_{random.randint(100, 999)}.png")
+    img.save(path, "PNG")
+    return path
+
+
+def main():
+    print("🎼 ScoreScapes AI 기동 — 악보에서 예술을 캐냅니다... (v2: 진짜 렌더링!)")
+    title = random.choice(list(SCORES.keys()))
+    score = SCORES[title]
+    print(f" - 오늘의 악보: {title} ({score['composer']}) · 음표 {len(score['notes'])}개 파싱")
+
+    path = render_scorescape(title, score)
+    if path:
+        print(f"🎨 아트워크 렌더링 완료 -> {path}")
+        print("✅ 세상에 하나뿐인 작품이 탄생했습니다! (실행할 때마다 색감이 달라져요)")
+        print("💡 팁: artworks/ 폴더에 작품이 쌓입니다. 스케줄러에 등록하면 매일 새 작품이!")
+    else:
+        print("❌ 렌더링 실패 — Pillow 설치 후 다시 시도해 주세요.")
+
 
 if __name__ == "__main__":
-    run_scorescapes_ai()
+    try:
+        main()
+    except KeyboardInterrupt:
+        print("\n[ScoreScapes] 사용자에 의해 중단되었습니다.")
