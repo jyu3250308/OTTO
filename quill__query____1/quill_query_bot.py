@@ -58,7 +58,7 @@ def build_insight_card(classic, use_ai=False):
         f"    — {classic['source']}\n\n"
         f"💡 현대 번역: {card_body}\n"
     )
-    return card
+    return card, card_body
 
 
 def ai_reinterpret(classic):
@@ -77,6 +77,79 @@ def ai_reinterpret(classic):
         print(f"[Quill&Query] AI 재해석 실패, 데모 모드로 폴백합니다: {err}")
         lens_name, lens_msg = random.choice(MODERN_LENSES)
         return f"[{lens_name}의 렌즈] {lens_msg}"
+
+
+def render_card_image(classic, card_body, out_dir="cards"):
+    """
+    🖼️ 통찰 카드를 SNS 업로드용 이미지(PNG, 1080x1350 인스타 규격)로 렌더링합니다.
+    Pillow가 없으면 조용히 건너뜁니다 (pip install Pillow).
+    """
+    try:
+        from PIL import Image, ImageDraw, ImageFont
+    except ImportError:
+        print("[Quill&Query] Pillow 미설치 — 카드 이미지 생략 (pip install Pillow 하면 활성화!)")
+        return None
+
+    # 한글 폰트 자동 탐색 (Windows/macOS/Linux 순회)
+    font_candidates = [
+        "C:/Windows/Fonts/malgunbd.ttf", "C:/Windows/Fonts/malgun.ttf",
+        "/System/Library/Fonts/AppleSDGothicNeo.ttc",
+        "/usr/share/fonts/truetype/nanum/NanumGothicBold.ttf",
+    ]
+    font_path = next((p for p in font_candidates if os.path.exists(p)), None)
+    if not font_path:
+        print("[Quill&Query] 한글 폰트를 찾지 못해 카드 이미지를 생략합니다.")
+        return None
+
+    W, H = 1080, 1350
+    img = Image.new("RGB", (W, H), (26, 26, 46))          # 딥 네이비 배경
+    draw = ImageDraw.Draw(img)
+    f_quote = ImageFont.truetype(font_path, 58)
+    f_src = ImageFont.truetype(font_path, 34)
+    f_body = ImageFont.truetype(font_path, 44)
+    f_foot = ImageFont.truetype(font_path, 28)
+
+    def wrap(text, font, max_w):
+        lines, line = [], ""
+        for word in text.split():
+            test = (line + " " + word).strip()
+            if draw.textbbox((0, 0), test, font=font)[2] <= max_w:
+                line = test
+            else:
+                lines.append(line)
+                line = word
+        if line:
+            lines.append(line)
+        return lines
+
+    def draw_block(lines, font, y, color, lh):
+        for ln in lines:
+            w = draw.textbbox((0, 0), ln, font=font)[2]
+            draw.text(((W - w) // 2, y), ln, font=font, fill=color)
+            y += lh
+        return y
+
+    y = 160
+    # 상단 장식: 노란 다이아몬드 (이모지는 폰트에 따라 깨질 수 있어 도형으로 그림)
+    cx, s = W // 2, 26
+    draw.polygon([(cx, y - s), (cx + s, y), (cx, y + s), (cx - s, y)], fill=(255, 228, 0))
+    y += 90
+    y = draw_block(wrap(f"“{classic['quote']}”", f_quote, 900), f_quote, y, (255, 255, 255), 80)
+    y += 20
+    y = draw_block(wrap(f"— {classic['source']}", f_src, 860), f_src, y, (160, 160, 190), 48)
+    y += 70
+    draw.line([(W // 2 - 160, y), (W // 2 + 160, y)], fill=(255, 228, 0), width=3)
+    y += 60
+    y = draw_block(wrap(card_body, f_body, 880), f_body, y, (255, 228, 0), 64)
+    foot = "Quill & Query · 매일 자동 발행되는 타임머신 통찰"
+    fw = draw.textbbox((0, 0), foot, font=f_foot)[2]
+    draw.text(((W - fw) // 2, H - 90), foot, font=f_foot, fill=(120, 120, 150))
+
+    os.makedirs(out_dir, exist_ok=True)
+    path = os.path.join(out_dir, f"card_{datetime.date.today().isoformat()}.png")
+    img.save(path, "PNG")
+    print(f"[Quill&Query] 🖼️ SNS용 카드 이미지 저장 완료 -> {path}")
+    return path
 
 
 def send_telegram(message):
@@ -120,12 +193,16 @@ def main():
     print(f" - 모드: {'AI 재해석' if use_ai else '데모(rule-based)'}")
 
     classic = random.choice(CLASSICS)
-    card = build_insight_card(classic, use_ai=use_ai)
+    card, card_body = build_insight_card(classic, use_ai=use_ai)
 
     print("\n" + card)
+    image_path = render_card_image(classic, card_body)   # 🖼️ SNS 업로드용 카드 이미지
     send_telegram(card)
     save_history(card)
-    print("✅ 오늘의 통찰 카드 발행 완료! 내일 또 만나요.")
+    if image_path:
+        print(f"✅ 발행 완료! 텍스트 카드 + 이미지 카드({image_path}) — SNS에 바로 올려보세요!")
+    else:
+        print("✅ 오늘의 통찰 카드 발행 완료! 내일 또 만나요.")
 
 
 if __name__ == "__main__":
