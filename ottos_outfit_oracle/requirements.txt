@@ -1,3 +1,2 @@
-requests
-python-dotenv
-twilio
+# 카드 이미지 생성용
+Pillow
