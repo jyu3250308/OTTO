@@ -1,307 +1,157 @@
+# -*- coding: utf-8 -*-
+"""
+캐럿블링크 🥕⚡ 당근 꿀매물 실시간 감시봇 (v2 — 진짜 매물을 진짜로 잡아냅니다!)
+==============================================================================
+당근마켓 공개 검색 페이지에서 키워드 매물을 실시간 수집하고, 이전 실행과 비교해
+'새로 올라온 매물'을 감지하면 알려주는 봇입니다. (표준 라이브러리만 사용, 키 불필요!)
+(제작: AI 에이전트 오또 · v2: 외부 라이브러리·API 의존 제거 + 실물 리포트 파일 발행)
+
+사용법:
+  python carrot_blink_bot.py             ← 기본 키워드(아이패드) 감시
+  python carrot_blink_bot.py "닌텐도"     ← 원하는 키워드 감시
+→ reports/ 폴더에 매물 리포트(html) 발행 + 새 매물 감지 시 콘솔/텔레그램 알림!
+"""
 import os
-import time
-import requests
-from bs4 import BeautifulSoup
-from telegram import Bot
-from dotenv import load_dotenv
-import logging
-from typing import List, Dict, Any, Set # For type hints, enhancing readability
+import re
+import sys
+import json
+import datetime
+import urllib.request
+import urllib.parse
 
-# --- Logging Configuration ---
-# Configure logging to display messages with timestamps, log levels, and messages.
-# INFO level messages and above will be shown.
-# You can change to logging.DEBUG for more verbose output during development.
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
-logger = logging.getLogger(__name__) # Use a logger instance for better control
+HISTORY_FILE = "watch_history.json"
 
-# --- Environment Variable Loading ---
-# Load environment variables from the .env file.
-# This allows sensitive information (like API tokens) and configurations
-# to be kept separate from the source code.
-load_dotenv()
-logger.info("Environment variables loaded from .env file.")
 
-# --- Configuration from .env ---
-# Retrieve configuration values from environment variables.
-# Provide default values where appropriate to prevent crashes if variables are missing.
-TELEGRAM_BOT_TOKEN: str = os.getenv('TELEGRAM_BOT_TOKEN', '')
-TELEGRAM_CHAT_ID: str = os.getenv('TELEGRAM_CHAT_ID', '') # Chat ID can be a string (e.g., for negative group IDs)
-
-DAANGN_BASE_SEARCH_URL: str = "https://www.daangn.com/search/"
-DAANGN_REGION_FILTER: str = os.getenv('DAANGN_REGION_FILTER', 'any').strip() # e.g., 'seoul-gangnam-gu' or 'any'
-
-# Process keywords: split by comma, clean whitespace, convert to lowercase, remove empty strings.
-KEYWORDS_RAW: str = os.getenv('KEYWORDS', '').strip()
-KEYWORDS: List[str] = [k.strip().lower() for k in KEYWORDS_RAW.split(',') if k.strip()]
-
-# Convert price limits to integers, with robust error handling.
-try:
-    MIN_PRICE: int = int(os.getenv('MIN_PRICE', 0))
-    if MIN_PRICE < 0:
-        logger.warning(f"MIN_PRICE was set to a negative value ({MIN_PRICE}). Resetting to 0.")
-        MIN_PRICE = 0
-except ValueError:
-    logger.error("Invalid value for MIN_PRICE in .env. Defaulting to 0.")
-    MIN_PRICE = 0
-
-try:
-    MAX_PRICE: int = int(os.getenv('MAX_PRICE', 999999999))
-    if MAX_PRICE < MIN_PRICE:
-        logger.warning(f"MAX_PRICE ({MAX_PRICE}) is less than MIN_PRICE ({MIN_PRICE}). Adjusting MAX_PRICE to MIN_PRICE.")
-        MAX_PRICE = MIN_PRICE
-except ValueError:
-    logger.error("Invalid value for MAX_PRICE in .env. Defaulting to 999999999.")
-    MAX_PRICE = 999999999
-
-# Convert polling interval to integer.
-try:
-    POLLING_INTERVAL_SECONDS: int = int(os.getenv('POLLING_INTERVAL_SECONDS', 300)) # Default 5 minutes
-    if POLLING_INTERVAL_SECONDS < 60:
-        logger.warning(f"POLLING_INTERVAL_SECONDS was set too low ({POLLING_INTERVAL_SECONDS}). Minimum is 60 seconds. Resetting to 60.")
-        POLLING_INTERVAL_SECONDS = 60
-except ValueError:
-    logger.error("Invalid value for POLLING_INTERVAL_SECONDS in .env. Defaulting to 300 seconds.")
-    POLLING_INTERVAL_SECONDS = 300
-
-# --- Telegram Bot Initialization ---
-# Ensure essential Telegram configuration is present.
-if not TELEGRAM_BOT_TOKEN:
-    logger.error("TELEGRAM_BOT_TOKEN is not set. Please check your .env file.")
-    exit(1)
-if not TELEGRAM_CHAT_ID:
-    logger.error("TELEGRAM_CHAT_ID is not set. Please check your .env file. Without it, messages cannot be sent.")
-    # We allow the bot to start for scraping, but warn that messages won't work.
-    # Optionally, you could exit here if messaging is strictly required for startup.
-    # For this bot, if we can't notify, there's no point in running.
-    exit(1)
-
-try:
-    bot: Bot = Bot(token=TELEGRAM_BOT_TOKEN)
-    logger.info("Telegram bot object initialized successfully. Ready to send messages.")
-except Exception as e:
-    logger.critical(f"Failed to initialize Telegram bot with the provided token: {e}")
-    logger.critical("Please ensure TELEGRAM_BOT_TOKEN is correct and has network access.")
-    exit(1)
-
-# --- Global State for tracking notified items ---
-# A set is used for efficient O(1) average time complexity lookups.
-# Storing item IDs to prevent sending duplicate notifications for the same item.
-notified_item_ids: Set[str] = set()
-logger.debug("Initialized global set for notified item IDs.")
-
-# --- Helper Functions ---
-def clean_price(price_str: str) -> int:
-    """
-    Removes non-numeric characters from a price string and converts it to an integer.
-    Handles common formats like '10,000원'.
-    """
-    if not isinstance(price_str, str) or not price_str:
-        return 0
-    # Remove '원', commas, and leading/trailing whitespace
-    cleaned = price_str.replace('원', '').replace(',', '').strip()
+def fetch_listings(keyword, limit=12):
+    """🌐 당근마켓 공개 검색 페이지에서 실제 매물을 수집합니다."""
+    url = "https://www.daangn.com/kr/buy-sell/?search=" + urllib.parse.quote(keyword)
+    req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/126"})
     try:
-        return int(cleaned)
-    except ValueError:
-        logger.warning(f"Could not parse price string '{price_str}'. Returning 0.")
-        return 0
-
-def send_telegram_message(message: str) -> None:
-    """
-    Sends a formatted message to the configured Telegram chat ID.
-    Uses HTML parse mode for rich text formatting.
-    """
-    if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
-        logger.error("Telegram bot token or chat ID is missing. Cannot send message.")
-        return
-
-    try:
-        bot.send_message(chat_id=TELEGRAM_CHAT_ID, text=message, parse_mode='HTML', disable_web_page_preview=False)
-        logger.info(f"Successfully sent message to Telegram chat {TELEGRAM_CHAT_ID}.")
-        logger.debug(f"Message content: {message[:100]}...") # Log first 100 chars of message
-    except Exception as e:
-        logger.error(f"Failed to send Telegram message to chat {TELEGRAM_CHAT_ID}: {e}")
-        logger.debug(f"Failed message content: {message[:100]}...")
-
-def scrape_daangn_items() -> List[Dict[str, Any]]:
-    """
-    Scrapes Daangn Market for items matching the configured keywords, region, and price filters.
-    Returns a list of dictionaries, each representing a found item.
-    """
-    all_found_items: List[Dict[str, Any]] = []
-    
-    # Define standard headers to mimic a web browser request, reducing chances of being blocked.
-    headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
-    }
-
-    # Iterate through each keyword to perform separate searches.
-    if not KEYWORDS:
-        logger.warning("No keywords configured. Skipping Daangn scraping.")
-        return []
-
-    for keyword in KEYWORDS:
-        encoded_keyword = requests.utils.quote(keyword) # URL-encode the keyword
-        search_url = f"{DAANGN_BASE_SEARCH_URL}{encoded_keyword}"
-        
-        # Append region filter if specified and not 'any'
-        if DAANGN_REGION_FILTER and DAANGN_REGION_FILTER != 'any':
-            search_url += f"?region={DAANGN_REGION_FILTER}"
-
-        logger.info(f"Attempting to scrape Daangn Market for keyword '{keyword}' at URL: {search_url}")
-
-        try:
-            # Send HTTP GET request with a timeout to prevent indefinite hangs.
-            response = requests.get(search_url, headers=headers, timeout=15)
-            response.raise_for_status()  # Raise HTTPError for bad responses (4xx or 5xx)
-            logger.debug(f"Successfully fetched URL: {search_url}")
-        except requests.exceptions.Timeout:
-            logger.error(f"Request timed out after 15 seconds for URL: {search_url}")
-            continue
-        except requests.exceptions.HTTPError as http_err:
-            logger.error(f"HTTP error occurred for URL {search_url}: {http_err} (Status: {response.status_code})")
-            continue
-        except requests.exceptions.RequestException as req_err:
-            logger.error(f"An error occurred during the request for URL {search_url}: {req_err}")
-            continue
-        except Exception as e:
-            logger.error(f"An unexpected error occurred while fetching {search_url}: {e}")
-            continue
-
-        soup = BeautifulSoup(response.text, 'html.parser')
-        
-        # Find all article elements that represent a flea market item.
-        # This class name is crucial for identifying individual listings.
-        items = soup.find_all('article', class_='flea-market-article')
-        if not items:
-            logger.info(f"No articles found for keyword '{keyword}' on Daangn search page '{search_url}'.")
-            continue # Move to the next keyword if no items are found for this one
-
-        logger.debug(f"Found {len(items)} potential articles for keyword '{keyword}'.")
-
-        for i, item in enumerate(items):
+        html = urllib.request.urlopen(req, timeout=15).read().decode("utf-8", "ignore")
+        # 페이지에 내장된 schema.org ItemList(JSON)를 정석 파싱 — 매물 정보가 구조화돼 있음
+        listings = []
+        for m in re.finditer(r'<script type="application/ld\+json">(.*?)</script>', html, re.DOTALL):
             try:
-                # --- Extract Link and Item ID ---
-                link_tag = item.find('a', class_='flea-market-article-link')
-                if not link_tag or 'href' not in link_tag.attrs:
-                    logger.debug(f"Item {i} for '{keyword}': No valid link tag found. Skipping.")
-                    continue
-                
-                item_link = "https://www.daangn.com" + link_tag['href']
-                item_id = item_link.split('/')[-1].split('?')[0] # Ensure only the item ID part, remove query params
-                
-                if not item_id:
-                    logger.debug(f"Item {i} for '{keyword}': Could not extract item ID from link '{item_link}'. Skipping.")
-                    continue
-                
-                # We check for `notified_item_ids` later, after all necessary info is extracted.
-                # This ensures we log if other filters caused a skip, even if already notified.
-
-                # --- Extract Title ---
-                title_tag = item.find('h2', class_='article-title')
-                title = title_tag.get_text(strip=True) if title_tag else "제목 없음"
-
-                # --- Extract Price ---
-                price_tag = item.find('p', class_='article-price')
-                price_str = price_tag.get_text(strip=True) if price_tag else "0원"
-                price = clean_price(price_str)
-
-                # --- Extract Region (neighborhood) ---
-                region_tag = item.find('p', class_='article-region-name')
-                region_name = region_tag.get_text(strip=True) if region_tag else "지역 정보 없음"
-                
-                # --- Apply Price Filter ---
-                if not (MIN_PRICE <= price <= MAX_PRICE):
-                    logger.debug(f"Skipping '{title}' (ID: {item_id}) due to price filter: {price_str} (Min:{MIN_PRICE:,}원, Max:{MAX_PRICE:,}원).")
-                    continue
-
-                # Add the item to our list if it passes all checks (except notification check).
-                all_found_items.append({
-                    'id': item_id,
-                    'title': title,
-                    'price': price,
-                    'price_str': price_str,
-                    'link': item_link,
-                    'region': region_name
-                })
-                logger.debug(f"Successfully parsed item '{title}' (ID: {item_id}, Price: {price_str}, Region: {region_name}).")
-                
-            except AttributeError as ae:
-                # Specific error for when .find() returns None and .get_text() or similar is called.
-                logger.warning(f"Attribute error while parsing an item for keyword '{keyword}': {ae}. "
-                               f"This might indicate a missing HTML element. Item HTML fragment: {item.prettify()[:500]}...")
-            except Exception as e:
-                # General exception for other unexpected parsing issues.
-                logger.error(f"An unexpected error occurred while parsing an item for keyword '{keyword}': {e}. "
-                             f"Item HTML fragment: {item.prettify()[:500]}...")
+                data = json.loads(m.group(1))
+            except Exception:
                 continue
-    
-    logger.info(f"Finished scraping all keywords. Total unique potential items found: {len(all_found_items)}.")
-    return all_found_items
+            if data.get("@type") != "ItemList":
+                continue
+            for el in data.get("itemListElement", []):
+                item = el.get("item", {})
+                offers = item.get("offers", {}) or {}
+                price = offers.get("price") or item.get("price") or 0
+                listings.append({
+                    "title": item.get("name", "(제목 없음)"),
+                    "price": int(float(price)) if price else 0,
+                    "link": item.get("url", url),
+                    "thumb": item.get("image", ""),
+                })
+                if len(listings) >= limit:
+                    break
+            break
+        if not listings:
+            raise ValueError("매물 파싱 결과 없음 (페이지 구조 변경 가능성)")
+        return listings, True
+    except Exception as err:
+        print(f"[캐럿블링크] 실시간 수집 실패({err}) → 데모 데이터로 시연합니다.")
+        demo = [{"title": f"(데모) {keyword} 매물 샘플 {i+1}", "price": 50000 * (i + 1),
+                 "link": "https://www.daangn.com", "thumb": ""} for i in range(5)]
+        return demo, False
 
-def main() -> None:
-    """
-    Main loop to continuously monitor Daangn Market and send Telegram notifications
-    for new items matching the criteria.
-    """
-    logger.info("--- Carrot-Blink: 🥕초광속 줍줍 Telegram Bot⚡️ started. ---")
-    logger.info(f"Monitoring keywords: {', '.join(KEYWORDS) if KEYWORDS else '없음'}")
-    logger.info(f"Price range: {MIN_PRICE:,}원 ~ {MAX_PRICE:,}원")
-    logger.info(f"Region filter: {DAANGN_REGION_FILTER if DAANGN_REGION_FILTER != 'any' else '전체 지역'}")
-    logger.info(f"Polling every {POLLING_INTERVAL_SECONDS} seconds.")
-    
-    # Send a startup message to Telegram to confirm bot is operational.
-    startup_message = (
-        "🥕<b>Carrot-Blink 봇이 시작되었습니다!</b>⚡️\n"
-        f"모니터링 키워드: <b>{', '.join(KEYWORDS) if KEYWORDS else '없음'}</b>\n"
-        f"가격 범위: <b>{MIN_PRICE:,}원 ~ {MAX_PRICE:,}원</b>\n"
-        f"지역 필터: <b>{DAANGN_REGION_FILTER if DAANGN_REGION_FILTER != 'any' else '전체 지역'}</b>\n"
-        f"매 <b>{POLLING_INTERVAL_SECONDS}초</b>마다 새로운 매물을 확인합니다."
-    )
-    send_telegram_message(startup_message)
 
-    # Main infinite loop for continuous monitoring.
-    while True:
-        logger.info("\n--- Starting a new round of item checks ---")
-        current_new_items: List[Dict[str, Any]] = [] # Items found in the current poll that haven't been notified yet.
-        
+def load_seen():
+    if os.path.exists(HISTORY_FILE):
         try:
-            found_items = scrape_daangn_items()
-            logger.info(f"Scraping completed. {len(found_items)} items passed initial filters for this round.")
-            
-            # Filter out already notified items and add new ones to `notified_item_ids`.
-            for item in found_items:
-                if item['id'] not in notified_item_ids:
-                    current_new_items.append(item)
-                    notified_item_ids.add(item['id']) # Add to set *before* sending, to prevent re-notification even if sending fails temporarily.
-            
-            if current_new_items:
-                logger.info(f"Found {len(current_new_items)} truly new item(s)! Sending notifications...")
-                for item in current_new_items:
-                    message = (
-                        "🚨 <b>새로운 꿀매물 발견!</b> 🚨\n"
-                        f"<b>[제목]</b> {item['title']}\n"
-                        f"<b>[가격]</b> {item['price_str']}\n"
-                        f"<b>[지역]</b> {item['region']}\n"
-                        f"<b>[링크]</b> <a href='{item['link']}'>매물 보러가기</a>"
-                    )
-                    send_telegram_message(message)
-                    time.sleep(1) # Small delay to avoid hitting Telegram API rate limits if many items are found.
-            else:
-                logger.info("No new items found matching criteria in this round.")
-        
-        except KeyboardInterrupt:
-            logger.info("Carrot-Blink bot manually stopped. Exiting.")
-            send_telegram_message("🥕<b>Carrot-Blink 봇이 종료되었습니다.</b>⚡️")
-            break # Exit the loop on Ctrl+C
-        except Exception as e:
-            # Catch any unexpected errors in the main loop to keep the bot running.
-            logger.critical(f"An unexpected error occurred in the main monitoring loop: {e}", exc_info=True)
-            send_telegram_message(f"⚠️ <b>Carrot-Blink 봇 오류 발생!</b> ⚠️\n"
-                                  f"봇 실행 중 예기치 않은 오류가 발생했습니다: {e}\n"
-                                  "다음 확인 주기에 다시 시도합니다.")
-        
-        logger.info(f"Waiting for {POLLING_INTERVAL_SECONDS} seconds before the next check...")
-        time.sleep(POLLING_INTERVAL_SECONDS)
+            return json.load(open(HISTORY_FILE, encoding="utf-8"))
+        except Exception:
+            return {}
+    return {}
 
-if __name__ == '__main__':
-    main()
+
+def detect_new(keyword, listings, seen):
+    """이전 실행과 비교해 '새로 등장한 매물'을 감지합니다 (반복 실행의 핵심 가치!)."""
+    old = set(seen.get(keyword, []))
+    new_items = [l for l in listings if l["title"] not in old]
+    seen[keyword] = list({l["title"] for l in listings} | old)[-300:]
+    json.dump(seen, open(HISTORY_FILE, "w", encoding="utf-8"), ensure_ascii=False, indent=2)
+    return new_items
+
+
+def build_report(keyword, listings, new_items, is_real):
+    """🥕 매물 현황을 보기 좋은 HTML 리포트로 발행합니다."""
+    today = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
+    src = "실시간 수집 (daangn.com 공개 검색)" if is_real else "데모 데이터"
+    new_titles = {n["title"] for n in new_items}
+    rows = ""
+    for l in listings:
+        badge = '<span class="new">NEW!</span> ' if l["title"] in new_titles else ""
+        img = f'<img src="{l["thumb"]}" alt="">' if l["thumb"] else ""
+        rows += f"""
+        <div class="item">{img}<div>
+          <a href="{l['link']}" target="_blank">{badge}{l['title']}</a>
+          <div class="price">{l['price']:,}원</div></div></div>"""
+    return f"""<!DOCTYPE html><html lang="ko"><head><meta charset="UTF-8">
+<title>캐럿블링크 — {keyword}</title><style>
+ body{{font-family:'Malgun Gothic',sans-serif;background:#fff7f0;color:#3d2c1e;max-width:680px;margin:0 auto;padding:24px;}}
+ h1{{color:#ff6f0f;}} .src{{color:#a08c7a;font-size:13px;}}
+ .item{{display:flex;gap:14px;background:#fff;border-radius:12px;padding:14px;margin:12px 0;box-shadow:0 1px 4px rgba(0,0,0,.08);}}
+ .item img{{width:90px;height:90px;object-fit:cover;border-radius:8px;}}
+ a{{color:#3d2c1e;text-decoration:none;font-weight:bold;font-size:16px;}}
+ .price{{color:#ff6f0f;font-weight:bold;margin-top:6px;}}
+ .new{{background:#ff6f0f;color:#fff;border-radius:6px;padding:1px 8px;font-size:12px;}}
+</style></head><body>
+<h1>🥕 캐럿블링크 — "{keyword}" 감시 리포트</h1>
+<p class="src">{today} · {src} · 새 매물 {len(new_items)}건 감지 · by 오또</p>
+{rows}
+<p class="src">스케줄러로 주기 실행하면 새 매물이 올라올 때마다 NEW 뱃지로 잡아냅니다!</p>
+</body></html>"""
+
+
+def send_telegram(text):
+    """(옵션) 텔레그램 알림 — 토큰 없으면 조용히 생략."""
+    token, chat_id = os.environ.get("TELEGRAM_BOT_TOKEN"), os.environ.get("TELEGRAM_CHAT_ID")
+    if not token or not chat_id:
+        return
+    try:
+        data = urllib.parse.urlencode({"chat_id": chat_id, "text": text}).encode()
+        urllib.request.urlopen(
+            urllib.request.Request(f"https://api.telegram.org/bot{token}/sendMessage", data=data), timeout=10)
+        print("[캐럿블링크] 텔레그램 알림 발송! 📨")
+    except Exception as err:
+        print(f"[캐럿블링크] 텔레그램 발송 실패(무시): {err}")
+
+
+def main():
+    keyword = sys.argv[1] if len(sys.argv) >= 2 else "아이패드"
+    print(f"🥕 캐럿블링크 기동 — \"{keyword}\" 매물을 실시간 감시합니다... (v2: 진짜 매물!)")
+
+    listings, is_real = fetch_listings(keyword)
+    src = "실시간" if is_real else "데모"
+    print(f" - [{src}] 매물 {len(listings)}건 수집:")
+    for l in listings[:3]:
+        print(f"   · {l['title'][:44]} — {l['price']:,}원")
+
+    new_items = detect_new(keyword, listings, load_seen())
+    if new_items:
+        print(f"\n⚡ 새 매물 {len(new_items)}건 감지!!")
+        for n in new_items[:3]:
+            print(f"   NEW → {n['title'][:44]} ({n['price']:,}원)")
+        send_telegram(f"🥕⚡ [{keyword}] 새 매물 {len(new_items)}건!\n" + "\n".join(
+            f"· {n['title']} — {n['price']:,}원\n{n['link']}" for n in new_items[:3]))
+    else:
+        print("\n(새 매물 없음 — 다음 실행 때 비교 감지합니다)")
+
+    os.makedirs("reports", exist_ok=True)
+    path = os.path.join("reports", f"carrot_{urllib.parse.quote(keyword)}_{datetime.date.today().isoformat()}.html")
+    with open(path, "w", encoding="utf-8") as f:
+        f.write(build_report(keyword, listings, new_items, is_real))
+    print(f"📰 감시 리포트 발행 -> {path} (브라우저로 열어보세요!)")
+    print("✅ 완료! 스케줄러에 30분 간격으로 등록하면 꿀매물 알림 무인 가동!")
+
+
+if __name__ == "__main__":
+    try:
+        main()
+    except KeyboardInterrupt:
+        print("\n[캐럿블링크] 감시 중단!")
