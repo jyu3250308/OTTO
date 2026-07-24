@@ -1,58 +1,79 @@
 import os
 import random
-from PIL import Image, ImageDraw, ImageOps # Using Pillow for image manipulation
+from PIL import Image, ImageDraw, ImageOps, ImageChops, ImageEnhance, ImageFont
 import datetime
 import time
 
 # --- Constants ---
 OUTPUT_DIR = "byterot_artifacts"
-MOCK_API_RESPONSE_TIME = 0.5 # Simulate AI processing time
-MOCK_PRICE = 1.0
+PRICE_TAG = 1.0  # 1달러 프로젝트의 상징 가격표
+
 
 def apply_glitch_effect(input_image_path: str, output_image_path: str, glitch_intensity: int = 15):
     """
-    Applies a retro digital decay/glitch effect to an image using Pillow.
-    Effects include pixel shifting and color channel disruption.
+    사진에 진짜 90년대 VHS/캠코더 감성의 디지털 부식 효과를 입힙니다. (v2 — 미학 대수술)
+    ① RGB 채널 어긋남(색수차) ② VHS 트래킹 에러(가로 밴드 밀림)
+    ③ 컬러 노이즈 라인 ④ 은은한 스캔라인(알파 합성) ⑤ 채도·대비 부스트 ⑥ 캠코더 타임스탬프
     """
     try:
-        with Image.open(input_image_path).convert("RGB") as img:
-            width, height = img.size
-            pixels = img.load()
+        with Image.open(input_image_path).convert("RGB") as src:
+            img = src.copy()
+        width, height = img.size
 
-            # Randomly shift blocks of pixels horizontally
-            for _ in range(int(height * 0.1)): # Apply glitch to 10% of lines
-                y = random.randint(0, height - 1)
-                shift = random.randint(-glitch_intensity, glitch_intensity)
-                if shift != 0:
-                    # Shift pixels in a line
-                    temp_line = [pixels[x, y] for x in range(width)]
-                    for x in range(width):
-                        shifted_x = (x + shift) % width
-                        pixels[shifted_x, y] = temp_line[x]
+        # ① 색수차 — R/B 채널을 살짝 어긋나게 (글리치 미학의 핵심)
+        dx = max(3, glitch_intensity // 4)
+        r, g, b = img.split()
+        r = ImageChops.offset(r, dx, 0)
+        b = ImageChops.offset(b, -dx, 0)
+        img = Image.merge("RGB", (r, g, b))
 
-            # Introduce color channel separation/noise in random areas
-            for _ in range(int(width * height * 0.005)): # Affect 0.5% of pixels
-                x, y = random.randint(0, width - 1), random.randint(0, height - 1)
-                r, g, b = pixels[x, y]
+        # ② VHS 트래킹 에러 — 가로 밴드가 통째로 밀림 (랩어라운드 처리)
+        for _ in range(random.randint(6, 11)):
+            y0 = random.randint(0, height - 30)
+            band_h = random.randint(6, 30)
+            shift = random.choice((-1, 1)) * random.randint(glitch_intensity, glitch_intensity * 4)
+            band = img.crop((0, y0, width, y0 + band_h))
+            img.paste(band, (shift, y0))
+            if shift > 0:
+                img.paste(band.crop((width - shift, 0, width, band_h)), (0, y0))
+            else:
+                img.paste(band.crop((0, 0, -shift, band_h)), (width + shift, y0))
 
-                # Randomly shift one color channel slightly
-                channel_to_shift = random.choice(['r', 'g', 'b'])
-                shift_amount = random.randint(-glitch_intensity // 5, glitch_intensity // 5)
+        # ③ 컬러 노이즈 라인 — 형광 픽셀이 튀는 가는 선 몇 개
+        draw = ImageDraw.Draw(img)
+        for _ in range(random.randint(3, 6)):
+            y = random.randint(0, height - 1)
+            neon = random.choice([(0, 255, 200), (255, 0, 180), (120, 255, 0), (0, 180, 255)])
+            x0 = random.randint(0, width // 2)
+            draw.line((x0, y, x0 + random.randint(40, width // 2), y), fill=neon, width=1)
 
-                if channel_to_shift == 'r':
-                    r = max(0, min(255, r + shift_amount))
-                elif channel_to_shift == 'g':
-                    g = max(0, min(255, g + shift_amount))
-                else: # 'b'
-                    b = max(0, min(255, b + shift_amount))
-                pixels[x, y] = (r, g, b)
+        # ④ 스캔라인 — 알파 합성으로 '은은하게' (사진을 죽이지 않는 게 포인트)
+        overlay = Image.new("RGBA", (width, height), (0, 0, 0, 0))
+        od = ImageDraw.Draw(overlay)
+        for y in range(0, height, 3):
+            od.line((0, y, width, y), fill=(0, 0, 0, 34))
+        img = Image.alpha_composite(img.convert("RGBA"), overlay).convert("RGB")
 
-            # Add a subtle "scanline" or "CRT" overlay (simplified)
-            draw = ImageDraw.Draw(img)
-            for y in range(0, height, 2):
-                draw.line((0, y, width, y), fill=(0, 0, 0, 30)) # Transparent black lines
+        # ⑤ 90년대 브라운관 감성 — 채도·대비 살짝 부스트
+        img = ImageEnhance.Color(img).enhance(1.25)
+        img = ImageEnhance.Contrast(img).enhance(1.06)
 
-            img.save(output_image_path)
+        # ⑥ 캠코더 타임스탬프 (레트로 화룡점정)
+        try:
+            font_path = next((p for p in ["C:/Windows/Fonts/consola.ttf", "C:/Windows/Fonts/arial.ttf",
+                                          "/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf"]
+                              if os.path.exists(p)), None)
+            fsize = max(18, width // 34)
+            font = ImageFont.truetype(font_path, fsize) if font_path else ImageFont.load_default()
+            stamp_draw = ImageDraw.Draw(img)
+            amber = (255, 176, 60)
+            stamp_draw.text((int(width * 0.04), int(height * 0.05)), "PLAY >", font=font, fill=amber)
+            stamp = datetime.datetime.now().strftime("%Y.%m.%d  AM %I:%M")
+            stamp_draw.text((int(width * 0.04), int(height * 0.90)), stamp, font=font, fill=amber)
+        except Exception:
+            pass  # 폰트가 없어도 아트는 완성되어야 한다
+
+        img.save(output_image_path)
         print(f"✅ Generated ByteRot Bloom artifact: {os.path.basename(output_image_path)}")
         return True
     except FileNotFoundError:
@@ -84,9 +105,12 @@ def generate_mock_image(filename="sample_input.png"):
 def display_retro_ui_message(message: str):
     """Prints a message in a retro, pixel-art style (simulated)."""
     border = "█" * (len(message) + 4)
-    print(f"\\n{border}\\n█ {message} █\\n{border}\\n")
+    print(f"\n{border}\n█ {message} █\n{border}\n")
 
 def main():
+    # 사용법: python byterot_bloom.py my_photo.jpg   ← 내 사진 변환
+    #        python byterot_bloom.py               ← 샘플 이미지로 즉시 시연
+    import sys
     display_retro_ui_message("W E L C O M E  T O  B Y T E R O T  B L O O M")
     print("✨ Relive the glorious digital decay of the 90s! ✨")
     print(f"Your unique digital artifact will be saved in: '{OUTPUT_DIR}'")
@@ -95,9 +119,10 @@ def main():
         os.makedirs(OUTPUT_DIR)
         print(f"📂 Created output directory: '{OUTPUT_DIR}'")
 
-    input_path = input(">>> Enter path to your image file (e.g., my_photo.jpg) or leave blank for a sample: ").strip()
-
-    if not input_path:
+    if len(sys.argv) >= 2:
+        input_path = sys.argv[1].strip()
+    else:
+        print("ℹ️ 사진 경로가 없어 샘플 이미지로 시연합니다. (python byterot_bloom.py 내사진.jpg)")
         input_path = generate_mock_image()
         if not input_path:
             print("🛑 Exiting: Could not prepare a sample image.")
@@ -112,27 +137,16 @@ def main():
     output_filename = f"byterot_bloom_{timestamp}.png"
     output_full_path = os.path.join(OUTPUT_DIR, output_filename)
 
-    print(f"🤖 Otto is processing '{os.path.basename(input_path)}' with digital decay magic... (simulated AI delay: {MOCK_API_RESPONSE_TIME}s)")
-    # Simulate AI processing time
-    time.sleep(MOCK_API_RESPONSE_TIME)
-
+    print(f"🤖 Otto is processing '{os.path.basename(input_path)}' with digital decay magic...")
     success = apply_glitch_effect(input_path, output_full_path)
 
     if success:
-        print(f"\\n✨ Your 'ByteRot Bloom' masterpiece is ready! Preview at: {output_full_path}")
-        print(f"💰 This unique digital artifact can be yours for just ${MOCK_PRICE:.2f}!")
-        buy_choice = input(">>> Do you wish to 'purchase' this artifact? (yes/no): ").strip().lower()
-
-        if buy_choice == 'yes':
-            print("💳 Transaction simulated! Thank you for your 'purchase' of digital decay art!")
-            print(f"💾 Your artifact '{os.path.basename(output_full_path)}' is now officially 'yours'.")
-        else:
-            print("💔 Understood. Your artifact has been generated but not 'purchased'.")
+        print(f"\n✨ Your 'ByteRot Bloom' masterpiece is ready! Preview at: {output_full_path}")
+        print(f"💰 이런 유니크한 디지털 유물, 엣시 같은 곳에선 ${PRICE_TAG:.2f}부터 시작입니다 — 이제 여러분이 무한 생산자!")
 
     display_retro_ui_message("T H A N K S  F O R  U S I N G  B Y T E R O T")
-    print(f"💡 Tip: Run this script daily to discover new decay patterns on your images!")
-    print("       You can schedule this with cron (Linux/macOS) or Task Scheduler (Windows).")
-    print("       Example for cron: 0 0 * * * python /path/to/byterot_bloom.py > /dev/null 2>&1")
+    print("💡 Tip: 실행할 때마다 부식 패턴이 달라집니다 — 같은 사진도 매번 다른 작품!")
+    print("       스케줄러(cron/작업 스케줄러)에 등록하면 매일 새로운 데케이 아트가 쌓입니다.")
 
 if __name__ == "__main__":
     main()
