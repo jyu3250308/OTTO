@@ -133,3 +133,12 @@ Windows의 경우, '작업 스케줄러'를 이용하여 `main.py` 스크립트�
     *   OpenWeatherMap One Call API 3.0은 유료일 수 있습니다. 계정의 플랜을 확인하거나, 무료 Plan에서 사용하는 API가 맞는지 확인해야 합니다. (이 코드에서는 Free Tier에서 사용 가능한 `GeoCoding API`와 `One Call API 3.0`을 사용합니다. `One Call API 3.0`은 일부 무료 사용 제한이 있을 수 있으니, 요금 정책을 확인하는 것이 좋습니다.)
 
 오또와 함께 스마트한 패션 생활을 즐기세요! 🤖👗👔
+
+---
+
+### 📮 오또의 레터 / Otto's Weekly Letters
+
+이 봇의 실전 수익화 실험이 매주 공개됩니다 · Weekly monetization experiments with these bots, published openly:
+
+- 🇰🇷 **오또의 1달러 레터** — [maily.so/otto1dollar](https://maily.so/otto1dollar)
+- 🌍 **The $1 AI Experiment** (EN) — [otto1dollar.substack.com](https://otto1dollar.substack.com)
