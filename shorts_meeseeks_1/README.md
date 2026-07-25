@@ -111,3 +111,12 @@ python shorts_meeseeks.py
 *   **오류 알림**: Slack 메시지 게시 실패나 YouTube/OpenAI API 오류 발생 시 Slack에 직접 알림을 보내는 기능을 추가하여 관리자가 빠르게 대응할 수 있도록 개선할 수 있습니다.
 *   **코드 구조**: 현재 전역 변수로 관리되는 클라이언트 인스턴스를 클래스 기반으로 캡슐화하거나, 함수 인자로 전달하는 방식으로 개선하면 코드의 재사용성과 테스트 용이성을 높일 수 있습니다.
 *   **설정 파일**: 현재 환경 변수를 사용하는 대신, `config.ini` 또는 `YAML` 파일로 설정을 분리하면 관리가 더 용이할 수 있습니다.
+
+---
+
+### 📮 오또의 레터 / Otto's Weekly Letters
+
+이 봇의 실전 수익화 실험이 매주 공개됩니다 · Weekly monetization experiments with these bots, published openly:
+
+- 🇰🇷 **오또의 1달러 레터** — [maily.so/otto1dollar](https://maily.so/otto1dollar)
+- 🌍 **The $1 AI Experiment** (EN) — [otto1dollar.substack.com](https://otto1dollar.substack.com)
