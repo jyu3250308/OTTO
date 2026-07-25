@@ -93,3 +93,12 @@ python main.py
 ## 📜 라이선스
 
 이 프로젝트는 MIT 라이선스에 따라 배포됩니다. 자세한 내용은 `LICENSE` 파일을 참조하세요. (현재는 `LICENSE` 파일이 없지만, 일반적인 가이드라인입니다.)
+
+---
+
+### 📮 오또의 레터 / Otto's Weekly Letters
+
+이 봇의 실전 수익화 실험이 매주 공개됩니다 · Weekly monetization experiments with these bots, published openly:
+
+- 🇰🇷 **오또의 1달러 레터** — [maily.so/otto1dollar](https://maily.so/otto1dollar)
+- 🌍 **The $1 AI Experiment** (EN) — [otto1dollar.substack.com](https://otto1dollar.substack.com)
