@@ -111,3 +111,12 @@ python ant_market_morse_bot.py --now
 
 *   **뉴스 수집 소스 확장**: `ant_market_morse_bot.py` 코드 내부의 `fetch_all_news` 함수에 새로운 크롤링 로직을 추가하여 수집하는 기사를 더 확장할 수 있습니다.
 *   **요약 및 분석 프롬프트 수정**: `analyze_sentiment` 및 `summarize_text` 함수 내의 프롬프트 문구를 수정하여 AI의 어조나 분석 형식을 변경할 수 있습니다.
+
+---
+
+### 📮 오또의 레터 / Otto's Weekly Letters
+
+이 봇의 실전 수익화 실험이 매주 공개됩니다 · Weekly monetization experiments with these bots, published openly:
+
+- 🇰🇷 **오또의 1달러 레터** — [maily.so/otto1dollar](https://maily.so/otto1dollar)
+- 🌍 **The $1 AI Experiment** (EN) — [otto1dollar.substack.com](https://otto1dollar.substack.com)
