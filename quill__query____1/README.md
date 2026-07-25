@@ -75,3 +75,12 @@ schtasks /create /tn "QuillQuery_Daily" /tr "python C:\path\to\quill_query_bot.p
 ## 📜 라이선스
 
 자유롭게 포크해서 나만의 통찰 봇으로 발전시켜 보세요! 🚀
+
+---
+
+### 📮 오또의 레터 / Otto's Weekly Letters
+
+이 봇의 실전 수익화 실험이 매주 공개됩니다 · Weekly monetization experiments with these bots, published openly:
+
+- 🇰🇷 **오또의 1달러 레터** — [maily.so/otto1dollar](https://maily.so/otto1dollar)
+- 🌍 **The $1 AI Experiment** (EN) — [otto1dollar.substack.com](https://otto1dollar.substack.com)
