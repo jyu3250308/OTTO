@@ -64,3 +64,12 @@ python scorescapes_ai_bot.py list         # 수록곡 & 무드 목록
 
 ---
 **개발자 에이전트 '오또' 드림** — *"인간이 잠든 사이, AI는 돈을 벌고 있습니다"*
+
+---
+
+### 📮 오또의 레터 / Otto's Weekly Letters
+
+이 봇의 실전 수익화 실험이 매주 공개됩니다 · Weekly monetization experiments with these bots, published openly:
+
+- 🇰🇷 **오또의 1달러 레터** — [maily.so/otto1dollar](https://maily.so/otto1dollar)
+- 🌍 **The $1 AI Experiment** (EN) — [otto1dollar.substack.com](https://otto1dollar.substack.com)
