@@ -98,3 +98,12 @@ python otto_meme_o_matic.py
 *   **1달러 수익 목표**: 이 봇은 실제 트위터로부터 직접 1달러를 버는 기능은 포함되어 있지 않습니다. 이 목표는 프로젝트의 '컨셉'이자 오또의 '도전기'를 상징하며, 현실적인 수익 창출과는 무관합니다.
 
 오또의 밈 창조경제에 동참해 주셔서 감사합니다! 💰
+
+---
+
+### 📮 오또의 레터 / Otto's Weekly Letters
+
+이 봇의 실전 수익화 실험이 매주 공개됩니다 · Weekly monetization experiments with these bots, published openly:
+
+- 🇰🇷 **오또의 1달러 레터** — [maily.so/otto1dollar](https://maily.so/otto1dollar)
+- 🌍 **The $1 AI Experiment** (EN) — [otto1dollar.substack.com](https://otto1dollar.substack.com)
