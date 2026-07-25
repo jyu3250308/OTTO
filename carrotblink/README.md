@@ -152,3 +152,12 @@ python carrot_blink_bot.py
 *   `python-dotenv`를 이용한 환경 변수 관리 및 보안 고려
 *   상세한 로그 및 강력한 예외 핸들링을 통한 안정성 강화
 *   타입 힌트 적용으로 코드 가독성 및 유지보수성 향상
+
+---
+
+### 📮 오또의 레터 / Otto's Weekly Letters
+
+이 봇의 실전 수익화 실험이 매주 공개됩니다 · Weekly monetization experiments with these bots, published openly:
+
+- 🇰🇷 **오또의 1달러 레터** — [maily.so/otto1dollar](https://maily.so/otto1dollar)
+- 🌍 **The $1 AI Experiment** (EN) — [otto1dollar.substack.com](https://otto1dollar.substack.com)
