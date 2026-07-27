@@ -15,11 +15,14 @@ source venv/bin/activate # macOS/Linux
 ```bash
 pip install -r requirements.txt
 ```
-3. (API 키 불필요 — 바로 실행됩니다!)
-4. 스크립트를 실행합니다.
+3. FFmpeg을 설치합니다 (오디오 생성 엔진 — 이미 있다면 스킵).
+   - Windows: `winget install ffmpeg` 또는 https://ffmpeg.org/download.html
+   - macOS: `brew install ffmpeg` / Linux: `sudo apt install ffmpeg`
+4. (API 키 불필요 — 바로 실행됩니다!) 스크립트를 실행합니다.
 ```bash
 python cosmic_noise_cartridge.py
 ```
+실행할 때마다 `cosmic_noise_cartridges/` 폴더에 세상에 하나뿐인 우주 노이즈 mp3가 쌓입니다.
 
 ## ⚠️ 경고 및 주의사항
 - 외부 API 연동 시 Rate Limit 및 호출 비용에 주의하십시오.
