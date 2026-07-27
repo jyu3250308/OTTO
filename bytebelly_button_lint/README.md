@@ -18,7 +18,7 @@ pip install -r requirements.txt
 3. `.env` 파일에 필요한 API 자격 증명을 설정합니다.
 4. 스크립트를 실행합니다.
 ```bash
-python bot.py
+python bytebelly_button_lint.py
 ```
 
 ## ⚠️ 경고 및 주의사항
