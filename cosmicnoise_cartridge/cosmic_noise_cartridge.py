@@ -66,28 +66,36 @@ def generate_ffmpeg_command(data, output_filepath, duration):
     # Final output volume (overall louder with more ambient noise)
     output_volume = 0.5 + (ambient_noise_percent * 0.5) # 0.5 to 1.0
 
-    # FFmpeg filter complex string using comma-separated filters
-    filter_complex_parts = [
-        "anullsrc=r=44100:cl=stereo", # Silent audio source, stereo
-        f"sine=f=10:s=44100:b=1", # Very low frequency hum, provides a base tone
-        f"volume={base_noise_amp}", # Initial volume adjusted by ambient noise
-        f"noise=alls=10:allf=t+h:alln=0.5", # Add white noise (all frequencies, high quality)
-        f"lowpass=f={lp_cutoff}", # Filter out frequencies above cutoff
-        f"highpass=f={hp_cutoff}", # Filter out frequencies below cutoff
-        f"acompressor=level_in=0.5:ratio={comp_ratio}:attack=20:release=1000:makeup={comp_makeup}", # Tape saturation effect
-        f"chorus=0.5:{chorus_depth}:50|60|40:0.4|0.3|0.3:0.25|0.4|0.3:2|2|2", # Wow & Flutter effect
-        f"volume={output_volume}" # Final output volume
-    ]
-    filter_complex = ",".join(filter_complex_parts)
+    # Low drone frequency from seismic tremor (40Hz to 140Hz rumble)
+    drone_freq = 40 + (seismic_tremor * 10)
+
+    # Two lavfi audio sources: pink noise (the 'cosmic static') + a low sine drone (the 'engine hum').
+    # NOTE: 'noise' is a VIDEO-only filter in FFmpeg — for audio we must use the 'anoisesrc' source.
+    noise_src = f"anoisesrc=r=44100:color=pink:amplitude={base_noise_amp:.3f}:duration={duration}"
+    drone_src = f"sine=frequency={drone_freq:.1f}:sample_rate=44100:duration={duration}"
+
+    # Audio-only filter chain: mix the two sources, then sculpt with the data-driven parameters.
+    filter_complex = (
+        f"[1:a]volume=0.35[drone];"
+        f"[0:a][drone]amix=inputs=2:duration=first:normalize=0,"
+        f"highpass=f={hp_cutoff:.1f},"
+        f"lowpass=f={lp_cutoff:.1f},"
+        f"acompressor=ratio={comp_ratio:.2f}:attack=20:release=1000:makeup={comp_makeup:.2f},"  # Tape saturation
+        f"chorus=0.6:{chorus_depth:.2f}:50|60|40:0.4|0.3|0.3:0.25|0.4|0.3:2|2|2,"  # Wow & Flutter
+        f"volume={output_volume:.3f}[out]"
+    )
 
     command = [
         FFMPEG_PATH,
-        "-y", # Overwrite output files without asking
-        "-f", "lavfi", # Use libavfilter input (filtergraph as input)
-        "-i", filter_complex,
-        "-t", str(duration), # Audio duration
-        "-c:a", "libmp3lame", # Audio codec for MP3
-        "-q:a", "2", # VBR quality 2 (good quality for MP3)
+        "-y",                       # Overwrite output files without asking
+        "-f", "lavfi", "-i", noise_src,
+        "-f", "lavfi", "-i", drone_src,
+        "-filter_complex", filter_complex,
+        "-map", "[out]",
+        "-ac", "2",                 # Stereo output
+        "-t", str(duration),        # Audio duration
+        "-c:a", "libmp3lame",       # Audio codec for MP3
+        "-q:a", "2",                # VBR quality 2 (good quality for MP3)
         output_filepath
     ]
     print(f"   Generated FFmpeg Command: {' '.join(command)}")
@@ -102,7 +110,7 @@ def main():
 
     # Ensure output directory exists
     os.makedirs(OUTPUT_DIR, exist_ok=True)
-    print(f"📁 Output directory '{{OUTPUT_DIR}}' ensured.")
+    print(f"📁 Output directory '{OUTPUT_DIR}' ensured.")
 
     # 1. Get simulated real-time data
     cosmic_data = get_mock_astronomical_data()
@@ -116,7 +124,7 @@ def main():
     ffmpeg_command = generate_ffmpeg_command(cosmic_data, output_filepath, AUDIO_DURATION_SEC)
 
     # 4. Execute FFmpeg command to generate audio clip
-    print(f"✨ Generating unique audio clip: '{{output_filepath}}'...")
+    print(f"✨ Generating unique audio clip: '{output_filepath}'...")
     try:
         # Run FFmpeg, capture output for debugging but don't print unless error
         subprocess.run(ffmpeg_command, check=True, capture_output=True)
@@ -127,12 +135,13 @@ def main():
     except subprocess.CalledProcessError as e:
         print(f"❌ Failed to generate audio clip.")
         print(f"   Error Code: {e.returncode}")
-        print(f"   STDOUT: {e.stdout.decode().strip()}")
-        print(f"   STDERR: {e.stderr.decode().strip()}")
+        print(f"   STDERR: {e.stderr.decode(errors='replace').strip()[-600:]}")
+        raise SystemExit(1)  # Fail loudly — a broken run must not look like a success
     except Exception as e:
         print(f"❌ An unexpected error occurred: {e}")
+        raise SystemExit(1)
 
-    print("\\n--- CosmicNoise Cartridge Workflow Complete ---")
+    print("\n--- CosmicNoise Cartridge Workflow Complete ---")
     print("To generate new, unique clips daily, consider scheduling this script (e.g., with cron or Task Scheduler).")
 
 if __name__ == "__main__":
