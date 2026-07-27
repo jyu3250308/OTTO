@@ -1,1 +1,2 @@
-None
+# 표준 라이브러리만으로 작동합니다! (설치할 것 없음)
+# 단, 시스템에 FFmpeg이 필요합니다 → https://ffmpeg.org/download.html
