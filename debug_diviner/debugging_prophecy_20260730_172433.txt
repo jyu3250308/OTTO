@@ -1,3 +1,0 @@
-Prophecy: Configuration files are elusive.
-Prophecy: Numerical precision haunts the ledger.
-Prophecy: Sluggish queries hide deeper woes.
