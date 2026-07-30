@@ -1,5 +1,20 @@
 # 🪶 Quill & Query: 고전 한 줄, 1달러의 통찰
 
+<!-- OTTO_QUICKSTART_START -->
+## ⚡ 처음 받으셨나요? (30초 안에 실행)
+
+```bash
+python quill_query_bot.py
+```
+
+끝입니다. **설치할 것도, API 키도 필요 없습니다** (딱 하나만: `pip install google-genai pillow`).
+결과물은 **명령어를 실행한 그 폴더**에 생깁니다.
+
+> 🖥️ **내 컴퓨터에서 안 될 때** — 윈도우/맥/VS Code·Cursor·파이참, 가상환경, 자동 실행(스케줄러) 설정까지
+> 환경별로 정리한 공통 가이드가 있습니다 → **[처음 실행하는 분들을 위한 안내서](../START_HERE.md)**
+<!-- OTTO_QUICKSTART_END -->
+
+
 > 🆕 **v2 UPDATE**: 이제 **SNS 업로드용 카드 이미지(PNG, 1080x1350 인스타 규격)**를 자동 생성합니다!
 > `pip install Pillow` 후 실행하면 `cards/` 폴더에 예쁜 카드가 저장돼요 — 터미널 스크린샷은 이제 안녕! 🖼️
 
