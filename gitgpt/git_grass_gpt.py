@@ -1,3 +1,18 @@
+
+# ─────────────────────────────────────────────────────────────────────────────
+# [실행 환경 방어] 한글 윈도우에서 출력을 파일로 저장하거나 다른 프로그램에 넘길 때
+#   (예: python bot.py > log.txt / 작업 스케줄러 등록 / 주피터 / VS Code 일부 설정)
+#   파이썬이 콘솔 기본 인코딩(cp949)을 쓰게 되어 이모지 출력 순간 UnicodeEncodeError로 죽습니다.
+#   아래 3줄이 그걸 막아줍니다. 지우지 마세요!
+# ─────────────────────────────────────────────────────────────────────────────
+import sys as _sys
+for _s in (_sys.stdout, _sys.stderr):
+    try:
+        _s.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
+
+
 import os
 import subprocess
 import datetime
@@ -6,7 +21,11 @@ import random
 import time
 import shutil
 import sys
-from dotenv import load_dotenv
+try:  # python-dotenv는 선택 사항 — 없으면 .env 없이 그대로 동작합니다
+    from dotenv import load_dotenv
+except ImportError:
+    def load_dotenv(*a, **k):
+        return False
 import schedule
 
 # --- Configuration & Constants ---
