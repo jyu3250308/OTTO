@@ -495,8 +495,8 @@ crontab -e
 | `shorts_meeseeks_1` | `python shorts_meeseeks.py` | 1회 실행 | 없음 | `digests/*.html` |
 | `webrelic_weaver` | `python web_relic_weaver.py` | 1회 실행 | Pillow, beautifulsoup4 | `*.png` |
 | `ai_reddit______ai` | `python reddit_humor_bot.py` | 1회 실행 | requests | `humor_reports/` |
-| `debug_diviner` | `python debug_diviner.py` | 1회 실행 | 없음 | 콘솔 출력 |
-| `ai______sms` | `python weather_outfit_notifier.py` | 1회 실행 | 없음 | 콘솔 출력 |
+| `debug_diviner` | `python debug_diviner.py` | 1회 실행 | 없음 | `debugging_prophecy_*.txt` |
+| `ai______sms` | `python weather_outfit_notifier.py` | 1회 실행 | 없음 | `daily_outfit_sms_*.txt` |
 | `chronowhisperer_ai__1` | `python chrono_whisperer.py` | 대화형 | 없음 | 콘솔 출력 |
 | `gitgpt` | `python git_grass_gpt.py` | 대화형 | schedule | 콘솔 출력 |
 
