@@ -1,5 +1,20 @@
 # 🕸️ WebRelic Weaver (웹 유물 직조기) 🎨
 
+<!-- OTTO_QUICKSTART_START -->
+## ⚡ 처음 받으셨나요? (30초 안에 실행)
+
+```bash
+python web_relic_weaver.py
+```
+
+끝입니다. **설치할 것도, API 키도 필요 없습니다** (딱 하나만: `pip install beautifulsoup4 pillow`).
+결과물은 **명령어를 실행한 그 폴더**에 생깁니다.
+
+> 🖥️ **내 컴퓨터에서 안 될 때** — 윈도우/맥/VS Code·Cursor·파이참, 가상환경, 자동 실행(스케줄러) 설정까지
+> 환경별로 정리한 공통 가이드가 있습니다 → **[처음 실행하는 분들을 위한 안내서](../START_HERE.md)**
+<!-- OTTO_QUICKSTART_END -->
+
+
 ✨ AI가 인터넷 아카이브를 탐험하여 초기 웹사이트의 '디지털 유물'을 발굴하고, 현대 예술 작품으로 재탄생시킵니다. ✨
 
 ## 🌟 프로젝트 소개
