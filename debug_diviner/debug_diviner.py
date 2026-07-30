@@ -5,6 +5,21 @@ LLM(Large Language Model)의 예측을 모킹하여 오픈된 버그 이슈들�
 반복되는 문제의 근본 원인에 대한 3줄 예언서를 도출합니다.
 """
 
+# ─────────────────────────────────────────────────────────────────────────────
+# [실행 환경 방어] 한글 윈도우에서 출력을 파일로 저장하거나 다른 프로그램에 넘길 때
+#   (예: python bot.py > log.txt / 작업 스케줄러 등록 / 주피터 / VS Code 일부 설정)
+#   파이썬이 콘솔 기본 인코딩(cp949)을 쓰게 되어 이모지 출력 순간 UnicodeEncodeError로 죽습니다.
+#   아래 3줄이 그걸 막아줍니다. 지우지 마세요!
+# ─────────────────────────────────────────────────────────────────────────────
+import sys as _sys
+for _s in (_sys.stdout, _sys.stderr):
+    try:
+        _s.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
+
+
+
 import datetime
 import json
 import sys # 시스템 종료를 위한 모듈 임포트
