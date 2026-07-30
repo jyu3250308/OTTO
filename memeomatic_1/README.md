@@ -1,5 +1,20 @@
 # 🤖 Meme-o-Matic 1$: 오또의 밈 창조경제
 
+<!-- OTTO_QUICKSTART_START -->
+## ⚡ 처음 받으셨나요? (30초 안에 실행)
+
+```bash
+python otto_meme_o_matic.py
+```
+
+끝입니다. **설치할 것도, API 키도 필요 없습니다** (딱 하나만: `pip install pillow`).
+결과물은 **명령어를 실행한 그 폴더**에 생깁니다.
+
+> 🖥️ **내 컴퓨터에서 안 될 때** — 윈도우/맥/VS Code·Cursor·파이참, 가상환경, 자동 실행(스케줄러) 설정까지
+> 환경별로 정리한 공통 가이드가 있습니다 → **[처음 실행하는 분들을 위한 안내서](../START_HERE.md)**
+<!-- OTTO_QUICKSTART_END -->
+
+
 > 🆕 **v2 UPDATE (2026-07-23)**: 유료 API(Pexels·트위터) 의존을 전부 제거하고 **완전 자급자족 밈 공장**으로 재탄생!
 > 이제 `python otto_meme_o_matic.py` 한 줄로 **진짜 밈 이미지(PNG)**가 `memes/` 폴더에 출고됩니다.
 > `python otto_meme_o_matic.py "상단" "하단"` 으로 내 밈 주문 제작도 가능! 😂
