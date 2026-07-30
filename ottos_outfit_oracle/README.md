@@ -1,5 +1,20 @@
 # 👕 옷또입지? (Otto's Outfit Oracle)
 
+<!-- OTTO_QUICKSTART_START -->
+## ⚡ 처음 받으셨나요? (30초 안에 실행)
+
+```bash
+python main.py
+```
+
+끝입니다. **설치할 것도, API 키도 필요 없습니다** (딱 하나만: `pip install pillow`).
+결과물은 **명령어를 실행한 그 폴더**에 생깁니다.
+
+> 🖥️ **내 컴퓨터에서 안 될 때** — 윈도우/맥/VS Code·Cursor·파이참, 가상환경, 자동 실행(스케줄러) 설정까지
+> 환경별로 정리한 공통 가이드가 있습니다 → **[처음 실행하는 분들을 위한 안내서](../START_HERE.md)**
+<!-- OTTO_QUICKSTART_END -->
+
+
 > 🆕 **v2 UPDATE (2026-07-23)**: 유료 API 키(OpenWeather·Twilio) 의존을 전부 제거했습니다!
 > 이제 **가입도 키도 필요 없는 무료 날씨 API(open-meteo)**로 내일 날씨를 실측 조회하고,
 > SNS 공유 가능한 **코디 카드 이미지(PNG)**를 저장합니다. `python main.py` 한 줄이면 끝!
