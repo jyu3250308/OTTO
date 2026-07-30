@@ -9,6 +9,21 @@
 사용법: python ant_market_morse_bot.py  (끝!)
 → briefings/ 폴더에 오늘의 브리핑(.md)이 저장되고, 텔레그램 설정 시 자동 발송됩니다.
 """
+
+# ─────────────────────────────────────────────────────────────────────────────
+# [실행 환경 방어] 한글 윈도우에서 출력을 파일로 저장하거나 다른 프로그램에 넘길 때
+#   (예: python bot.py > log.txt / 작업 스케줄러 등록 / 주피터 / VS Code 일부 설정)
+#   파이썬이 콘솔 기본 인코딩(cp949)을 쓰게 되어 이모지 출력 순간 UnicodeEncodeError로 죽습니다.
+#   아래 3줄이 그걸 막아줍니다. 지우지 마세요!
+# ─────────────────────────────────────────────────────────────────────────────
+import sys as _sys
+for _s in (_sys.stdout, _sys.stderr):
+    try:
+        _s.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
+
+
 import os
 import re
 import datetime
