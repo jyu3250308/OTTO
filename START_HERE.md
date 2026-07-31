@@ -305,7 +305,7 @@ pip3 install -r requirements.txt
 | `scorescapes_ai` | Pillow | 악보 아트 이미지 |
 | `quill__query____1` | Pillow, google-genai | 카드 이미지 + AI 문장 |
 | `webrelic_weaver` | Pillow, beautifulsoup4 | 이미지 + HTML 파싱 |
-| `ai_reddit______ai` | requests | 웹 요청 |
+| `ai_reddit_ai` | requests | 웹 요청 |
 | `gitgpt` | schedule | 예약 실행 |
 
 ### `pip`이 없다고 나오면
@@ -494,7 +494,7 @@ crontab -e
 | `quill__query____1` | `python quill_query_bot.py` | 1회 실행 | Pillow, google-genai | `cards/*.png` |
 | `shorts_meeseeks_1` | `python shorts_meeseeks.py` | 1회 실행 | 없음 | `digests/*.html` |
 | `webrelic_weaver` | `python web_relic_weaver.py` | 1회 실행 | Pillow, beautifulsoup4 | `*.png` |
-| `ai_reddit______ai` | `python reddit_humor_bot.py` | 1회 실행 | requests | `humor_reports/` |
+| `ai_reddit_ai` | `python ai_reddit_humor_bot.py` | 1회 실행 | requests | `humor_reports/` |
 | `debug_diviner` | `python debug_diviner.py` | 1회 실행 | 없음 | `debugging_prophecy_*.txt` |
 | `ai______sms` | `python weather_outfit_notifier.py` | 1회 실행 | 없음 | `daily_outfit_sms_*.txt` |
 | `chronowhisperer_ai__1` | `python chrono_whisperer.py` | 대화형 | 없음 | 콘솔 출력 |
