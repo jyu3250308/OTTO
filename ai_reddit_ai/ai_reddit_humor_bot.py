@@ -1,3 +1,13 @@
+
+# [실행 환경 방어] 출력을 파일로 저장하거나 자동 실행할 때 한글 윈도우에서
+#   UnicodeEncodeError로 죽는 것을 막아줍니다. 지우지 마세요!
+import sys as _sys
+for _s in (_sys.stdout, _sys.stderr):
+    try:
+        _s.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
+
 import os
 import json
 import requests
