@@ -1,1 +1,1 @@
-이 스크립트는 Python 표준 라이브러리(sys, datetime, os)만을 사용하므로 별도의 외부 라이브러리 설치가 필요 없습니다.
+No external dependencies (Python standard library only)
