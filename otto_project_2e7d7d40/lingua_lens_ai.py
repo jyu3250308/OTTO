@@ -2,20 +2,21 @@ import sys as _sys
 import datetime
 import os
 
-# --- [실행 환경 방어] 한글 윈도우 인코딩 오류 방지 --- #
-# 출력을 파일로 저장하거나 자동 실행 시 UnicodeEncodeError를 방지합니다. 지우지 마세요.
+# --- [환경 방어] 한글 윈도우 인코딩 오류 방지 --- #
+# 출력을 파일로 저장하거나 자동 실행 시 발생할 수 있는 UnicodeEncodeError를 방지합니다.
 for _s in (_sys.stdout, _sys.stderr):
     try:
         _s.reconfigure(encoding="utf-8", errors="replace")
     except Exception:
         pass
 
-# --- Constants: AI 분석 임계값 설정 --- #
+# --- 상수: AI 분석 임계값 설정 --- #
 VOCAB_ERROR_THRESHOLD = 5
 GRAMMAR_CONFUSED_THRESHOLD = 4
 PRACTICE_LOW_SCORE_THRESHOLD = 60
+MIN_PRACTICE_FOR_TREND_ANALYSIS = 3
 
-# --- 1. 가상 사용자 학습 데이터 생성 (Mocking) ---
+# --- 1. 가상 사용자 학습 데이터 생성 (Mocking) --- #
 def simulate_user_data() -> dict:
     """AI 분석을 위한 가상 사용자 학습 로그 데이터를 생성합니다. (실제 서비스에서는 DB/API 로드)"""
     print("[LOG] 1/4단계: 사용자 학습 데이터를 시뮬레이션합니다...")
@@ -39,62 +40,88 @@ def simulate_user_data() -> dict:
             {"date": "2023-10-28", "type": "speaking", "score": 60, "duration_min": 25},
             {"date": "2023-11-01", "type": "writing", "score": 75, "duration_min": 50},
             {"date": "2023-11-03", "type": "listening", "score": 55, "duration_min": 30}]}
-    print(f"[INFO] 사용자 '{user_data['name']}' ({user_data['user_id']}) 학습 데이터 로드 완료.")
+    print(f"[INFO] 사용자 '{user_data.get('name', 'N/A')}' ({user_data.get('user_id', 'N/A')}) 학습 데이터 로드 완료.")
     return user_data
 
-# --- 2. 학습 데이터 분석 (AI Mocking Logic) ---
+# --- 2. 학습 데이터 분석 (AI Mocking Logic) --- #
 def analyze_learning_data(user_data: dict) -> dict:
-    """사용자의 학습 데이터를 분석하여 약점과 개선점을 식별합니다. (AI 모델의 규칙 기반 Mocking)"""
+    """사용자의 학습 데이터를 분석하여 약점과 개선점을 식별합니다. (규칙 기반 Mocking)"""
     print("[LOG] 2/4단계: 학습 데이터를 분석하여 'AI 언어 처방전'을 준비합니다...")
-    analysis = {"weak_vocabulary": [], "weak_grammar_topics": [], "practice_insights": [], "overall_diagnosis": "", "recommendations": []}
+    analysis = {
+        "weak_vocabulary": [], "weak_grammar_topics": [], "practice_insights": [],
+        "overall_diagnosis": "", "recommendations": []
+    }
 
     # 2.1. 어휘 약점 식별
-    analysis["weak_vocabulary"] = [f"{item.get('word')} (오류 {item.get('errors', 0)}회)"
-                                 for item in user_data.get("vocabulary_log", []) if item.get("errors", 0) >= VOCAB_ERROR_THRESHOLD]
+    analysis["weak_vocabulary"] = [
+        f"{item.get('word', 'N/A')} (오류 {item.get('errors', 0)}회)"
+        for item in user_data.get("vocabulary_log", []) if item.get("errors", 0) >= VOCAB_ERROR_THRESHOLD
+    ]
 
     # 2.2. 문법 약점 식별
-    analysis["weak_grammar_topics"] = [f"{item.get('topic')} (혼란 {item.get('confused_count', 0)}회)"
-                                   for item in user_data.get("grammar_notes", [])
-                                   if not item.get("understood", True) and item.get("confused_count", 0) >= GRAMMAR_CONFUSED_THRESHOLD]
+    analysis["weak_grammar_topics"] = [
+        f"{item.get('topic', 'N/A')} (혼란 {item.get('confused_count', 0)}회)"
+        for item in user_data.get("grammar_notes", [])
+        if not item.get("understood", True) and item.get("confused_count", 0) >= GRAMMAR_CONFUSED_THRESHOLD
+    ]
 
     # 2.3. 연습 기록 통찰
-    scores = [log.get("score", 0) for log in user_data.get("practice_logs", []) if isinstance(log.get("score"), (int, float))]
-    if not scores: analysis["practice_insights"].append("아직 연습 기록이 부족합니다. 꾸준히 시작해보세요.")
+    practice_scores = [log.get("score", 0) for log in user_data.get("practice_logs", []) if isinstance(log.get("score"), (int, float))]
+    if not practice_scores:
+        analysis["practice_insights"].append("아직 연습 기록이 충분하지 않습니다. 학습을 시작해보세요!")
     else:
-        avg_score = sum(scores) / len(scores)
-        if avg_score < PRACTICE_LOW_SCORE_THRESHOLD: analysis["practice_insights"].append(f"전반적인 연습 점수(평균 {avg_score:.1f}점)가 낮습니다. 기본기 다지기에 집중하세요.")
-        if len(scores) >= 3 and scores[-1] < scores[-2] and scores[-2] < scores[-3]: analysis["practice_insights"].append("최근 연습 점수가 하락세입니다. 슬럼프를 주의하고 원인을 파악해 보세요.")
-        if not analysis["practice_insights"]: analysis["practice_insights"].append("연습은 꾸준히 잘 진행되고 있습니다! 좋은 흐름을 유지하세요.")
+        avg_score = sum(practice_scores) / len(practice_scores)
+        analysis["practice_insights"].append(f"전반적인 연습 점수 평균: {avg_score:.1f}점.")
+        if avg_score < PRACTICE_LOW_SCORE_THRESHOLD:
+            analysis["practice_insights"].append("평균 점수가 낮습니다. 기본기 다지기에 집중하는 것이 좋습니다.")
+        if len(practice_scores) >= MIN_PRACTICE_FOR_TREND_ANALYSIS and all(practice_scores[i] < practice_scores[i-1] for i in range(len(practice_scores) - MIN_PRACTICE_FOR_TREND_ANALYSIS + 1, len(practice_scores))):
+            analysis["practice_insights"].append("최근 연습 점수가 하락세입니다. 슬럼프를 주의하고 원인을 파악해 보세요.")
+        if not any(PRACTICE_LOW_SCORE_THRESHOLD > avg_score or (len(practice_scores) >= MIN_PRACTICE_FOR_TREND_ANALYSIS and all(practice_scores[i] < practice_scores[i-1] for i in range(len(practice_scores) - MIN_PRACTICE_FOR_TREND_ANALYSIS + 1, len(practice_scores)))) for _ in range(1)):
+            analysis["practice_insights"].append("연습은 꾸준히 잘 진행되고 있습니다! 좋은 흐름을 유지하세요.")
 
     # 2.4. 종합 진단 및 맞춤형 처방
-    if analysis["weak_vocabulary"] or analysis["weak_grammar_topics"]:
-        analysis["overall_diagnosis"] = "현재 어휘 및 문법 영역에서 고질적인 약점이 발견됩니다. 이 부분에 집중적인 개선이 필요합니다."
-        if analysis["weak_vocabulary"]: analysis["recommendations"].append(f"- 취약 어휘 ({', '.join(analysis['weak_vocabulary'])}) 반복 학습 및 다양한 예문 만들기를 권장합니다.")
-        if analysis["weak_grammar_topics"]: analysis["recommendations"].append(f"- 취약 문법 ({', '.join(analysis['weak_grammar_topics'])}) 개념 재정립 및 관련 문제 풀이를 집중적으로 진행하세요.")
+    if analysis["weak_vocabulary"] or analysis["weak_grammar_topics"] or any(s < PRACTICE_LOW_SCORE_THRESHOLD for s in practice_scores):
+        analysis["overall_diagnosis"] = "현재 학습에 개선이 필요한 영역이 발견됩니다. 집중적인 학습 전략이 필요합니다."
+        if analysis["weak_vocabulary"]:
+            analysis["recommendations"].append(f"- 취약 어휘 ({', '.join(analysis['weak_vocabulary'])}) 반복 학습 및 다양한 예문 만들기를 권장합니다.")
+        if analysis["weak_grammar_topics"]:
+            analysis["recommendations"].append(f"- 취약 문법 ({', '.join(analysis['weak_grammar_topics'])}) 개념 재정립 및 관련 문제 풀이를 집중적으로 진행하세요.")
+        if any(s < PRACTICE_LOW_SCORE_THRESHOLD for s in practice_scores):
+             analysis["recommendations"].append("- 연습 점수가 낮은 경우, 해당 영역의 기본 개념을 다시 학습하고 쉬운 문제부터 시작하여 점진적으로 난이도를 높여보세요.")
     else:
         analysis["overall_diagnosis"] = "전반적인 학습 진행은 양호합니다. 다음 단계로의 도약을 위한 심화 학습을 고려해보세요."
         analysis["recommendations"].append("- 현재 학습 흐름을 유지하며, 흥미로운 고급 자료에 지속적으로 노출되어 보세요.")
     analysis["recommendations"].extend([
         "- 주간 학습 시간을 시각화하여 학습 지속성을 높이고, 특정 요일에 학습이 몰리지 않도록 분산 학습을 시도해 보세요.",
-        "- 오답 노트를 적극 활용하여 틀린 문제를 다시 풀고, 관련 개념을 완전히 이해하도록 노력하세요."])
+        "- 오답 노트를 적극 활용하여 틀린 문제를 다시 풀고, 관련 개념을 완전히 이해하도록 노력하세요."
+    ])
 
-    print("[INFO] 학습 데이터 분석 완료.")
+    print("[INFO] 학습 데이터 분석 완료: 약점 및 추천 전략 도출.")
     return analysis
 
-# --- 3. AI 언어 처방전 보고서 내용 생성 ---
+# --- 3. AI 언어 처방전 보고서 내용 생성 --- #
 def generate_prescription_report(user_data: dict, analysis: dict) -> str:
     """분석 결과를 바탕으로 'AI 언어 처방전' 보고서 내용을 문자열로 생성합니다."""
     print("[LOG] 3/4단계: 'AI 언어 처방전' 보고서 내용을 생성합니다...")
-    _get_len = lambda d_list: len(d_list) if d_list else 1 # Division by zero 방지
-    vocab_mastery_idx = int(max(0, min(100, sum(item.get('mastery', 0) for item in user_data.get('vocabulary_log', [])) / _get_len(user_data.get('vocabulary_log')) * 10)))
-    grammar_understanding_idx = int(max(0, min(100, sum(10 if item.get('understood') else (10 - item.get('confused_count', 0)) for item in user_data.get('grammar_notes', [])) / _get_len(user_data.get('grammar_notes')) * 10)))
-    practice_consistency_idx = int(max(0, min(100, sum(1 for log in user_data.get('practice_logs', []) if log.get('score', 0) > 0) / 7 * 100))) # 주간 7회 연습 가정
-    avg_practice_duration = sum(log.get('duration_min', 0) for log in user_data.get('practice_logs', [])) / _get_len(user_data.get('practice_logs'))
+
+    # 지표 계산을 위한 헬퍼 함수 (Division by zero 방지 및 기본값 처리)
+    def _safe_avg(data_list, key, default_val=0): return sum(item.get(key, default_val) for item in data_list) / max(1, len(data_list))
+    def _calculate_index(score, max_score, data_list): return int(max(0, min(100, score / max(1, len(data_list)) * max_score)))
+
+    vocab_log = user_data.get('vocabulary_log', [])
+    grammar_notes = user_data.get('grammar_notes', [])
+    practice_logs = user_data.get('practice_logs', [])
+
+    vocab_mastery_idx = _calculate_index(_safe_avg(vocab_log, 'mastery', 0), 10, vocab_log) # mastery 1~5, x20 하면 100점 만점
+    grammar_understanding_score = sum(10 if item.get('understood') else (max(0, 10 - item.get('confused_count', 0))) for item in grammar_notes)
+    grammar_understanding_idx = _calculate_index(grammar_understanding_score, 10, grammar_notes) # 가중치 10으로 100점 만점 스케일
+    practice_consistency_idx = _calculate_index(sum(1 for log in practice_logs if log.get('score', 0) > 0), 100/7, practice_logs) # 주간 7회 연습 가정
+    avg_practice_duration = _safe_avg(practice_logs, 'duration_min', 0)
 
     report_content = f"""
-# ================================================
-#      LinguaLens AI: 오또의 언어처방전 리포트      
-# ================================================
+# ================================================ #
+#      LinguaLens AI: 오또의 언어처방전 리포트       #
+# ================================================ #
 
 보고서 생성일: {datetime.datetime.now().strftime('%Y년 %m월 %d일 %H시 %M분')}
 학습자: {user_data.get('name', '알 수 없음')} ({user_data.get('user_id', 'N/A')})
@@ -111,10 +138,10 @@ def generate_prescription_report(user_data: dict, analysis: dict) -> str:
 {'특별한 취약 문법 없음' if not analysis['weak_grammar_topics'] else '- ' + '\n- '.join(analysis['weak_grammar_topics'])}
 
 ### 2.3. 연습 기록 통찰
-- {'\n- '.join(analysis['practice_insights'] if analysis['practice_insights'] else ['연습 기록에 대한 특별한 통찰이 없습니다.'])}
+{'- ' + '\n- '.join(analysis['practice_insights']) if analysis['practice_insights'] else '- 연습 기록에 대한 특별한 통찰이 없습니다.'}
 
 ## 3. 오또의 맞춤형 개선 전략
-{('\n'.join(analysis['recommendations']) if analysis['recommendations'] else '특별한 추천 전략이 없습니다.')}
+{('\n'.join(analysis['recommendations']) if analysis['recommendations'] else '특별한 추천 전략이 없습니다. 현재 학습 상태를 유지하고, 새로운 학습 목표를 설정해 보세요.')}
 
 ## 4. 학습 효율성 지표 (가상 시각화)
 현재 어휘 마스터리 지수: {vocab_mastery_idx}% (지난주 대비 5% 변동)
@@ -126,28 +153,28 @@ def generate_prescription_report(user_data: dict, analysis: dict) -> str:
   문법 이해도:   [{('■' * (grammar_understanding_idx // 10)).ljust(10, '□')}] {grammar_understanding_idx}%
   연습 꾸준함:   [{('■' * (practice_consistency_idx // 10)).ljust(10, '□')}] {practice_consistency_idx}%
 
-# ================================================
-#              오또는 오늘도 1달러를 법니다!              
-# ================================================
+# ================================================ #
+#              오또는 오늘도 1달러를 법니다!               #
+# ================================================ #
 """
     print("[INFO] 'AI 언어 처방전' 보고서 내용 생성 완료.")
     return report_content
 
-# --- 4. 보고서 파일 저장 ---
+# --- 4. 보고서 파일 저장 --- #
 def save_report_to_file(report_content: str, filename: str):
     """생성된 보고서 내용을 지정된 파일명으로 저장합니다."""
     print(f"[LOG] 4/4단계: 보고서를 '{filename}' 파일로 저장합니다...")
     try:
         with open(filename, "w", encoding="utf-8") as f:
             f.write(report_content)
-        print(f"[SUCCESS] 'AI 언어 처방전' 보고서가 '{filename}' 파일로 저장되었습니다.")
+        print(f"[SUCCESS] 'AI 언어 처방전' 보고서가 '{filename}' 파일로 성공적으로 저장되었습니다.")
         print(f"[INFO] 보고서 경로: {os.path.abspath(filename)}")
     except IOError as e:
         print(f"[ERROR] 보고서 저장 중 입출력 오류 발생: {e}")
     except Exception as e:
         print(f"[ERROR] 알 수 없는 오류로 보고서 저장 실패: {e}")
 
-# --- 메인 실행 함수 ---
+# --- 메인 실행 함수 --- #
 def main():
     print("\n========================================")
     print(" LinguaLens AI: 오또의 언어처방전 시작 ")
