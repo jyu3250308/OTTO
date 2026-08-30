@@ -1,6 +1,4 @@
-# [실행 환경 방어] 출력을 파일로 저장하거나 자동 실행할 때 한글 윈도우에서
-#   UnicodeEncodeError로 죽는 것을 막아줍니다. 지우지 마세요!
-import sys as _sys
+import sys
 import argparse
 import datetime
 import random
@@ -9,11 +7,13 @@ import os
 import feedparser
 import time
 
-# Reconfigure stdout/stderr for UTF-8 in Windows
-for _s in (_sys.stdout, _sys.stderr):
+# Configure stdout/stderr for UTF-8 in Windows to prevent UnicodeEncodeError.
+for _s in (sys.stdout, sys.stderr):
     try:
         _s.reconfigure(encoding="utf-8", errors="replace")
-    except Exception:
+    except AttributeError: # reconfigure may not exist on some systems/versions
+        pass
+    except Exception: # Catch other potential issues
         pass
 
 # --- Constants ---
@@ -24,47 +24,47 @@ CONTENT_TYPES = {
     "news": ["breaking", "report", "update", "news", "says", "source"],
     "review": ["review", "test", "hands-on", "opinion", "product"]
 }
+DEFAULT_NUM_RSS_ENTRIES = 50
+DEFAULT_NUM_MOCK_ENTRIES = 200
 
-# --- Data Loading and Simulation ---
+# --- Data Loading ---
 def load_data_from_csv(file_path: str) -> list:
     """Loads social data from a CSV file."""
-    print(f"[INFO] Attempting to load data from CSV: {file_path}")
+    print(f"[INFO] Loading data from CSV: {file_path}")
     data = []
     try:
         with open(file_path, 'r', newline='', encoding='utf-8') as csvfile:
             reader = csv.DictReader(csvfile)
             for i, row in enumerate(reader):
                 try:
-                    timestamp = datetime.datetime.fromisoformat(row['timestamp'])
-                    content_type = row.get('content_type', 'general').lower()
-                    engagement_score = float(row['engagement_score'])
-                    data.append({'timestamp': timestamp, 'content_type': content_type, 'engagement_score': engagement_score})
+                    data.append({
+                        'timestamp': datetime.datetime.fromisoformat(row['timestamp']),
+                        'content_type': row.get('content_type', 'general').lower(),
+                        'engagement_score': float(row['engagement_score'])
+                    })
                 except (ValueError, KeyError) as e:
-                    print(f"[WARNING] Skipping row {i+1} due to data error in {file_path}: {e}")
+                    print(f"[WARNING] Skipping row {i+1} due to data error: {e}")
         print(f"[SUCCESS] Loaded {len(data)} data points from {file_path}.")
         return data
     except FileNotFoundError:
         print(f"[ERROR] Data file not found: {file_path}.")
         return []
     except Exception as e:
-        print(f"[ERROR] Failed to read CSV file {file_path}: {e}")
+        print(f"[ERROR] Failed to read CSV {file_path}: {e}")
         return []
 
-def fetch_and_simulate_social_data(num_entries: int = 50) -> list:
+def fetch_and_simulate_social_data(num_entries: int = DEFAULT_NUM_RSS_ENTRIES) -> list:
     """Fetches recent data from RSS feed and simulates engagement."""
-    print(f"[INFO] Fetching recent public data from {RSS_FEED_URL} to simulate trends...")
+    print(f"[INFO] Fetching {num_entries} entries from {RSS_FEED_URL} for simulation...")
     simulated_data = []
     try:
         feed = feedparser.parse(RSS_FEED_URL)
         if not feed.entries:
-            print("[WARNING] RSS feed returned no entries. Cannot simulate.")
-            return []
+            print("[WARNING] RSS feed returned no entries."); return []
 
         for entry in random.sample(feed.entries, min(num_entries, len(feed.entries))):
-            title = entry.get('title', '').lower()
-            summary = entry.get('summary', '').lower() if entry.get('summary') else ''
+            title = entry.get('title', '').lower(); summary = entry.get('summary', '').lower()
             published_parsed = entry.get('published_parsed')
-
             if not published_parsed: continue
             dt_object = datetime.datetime.fromtimestamp(time.mktime(published_parsed))
 
@@ -77,15 +77,15 @@ def fetch_and_simulate_social_data(num_entries: int = 50) -> list:
             if content_type in ["challenge", "tutorial"] or any(k in title for k in ["viral", "popular", "trend"]):
                 engagement_score += random.uniform(0.1, 0.3)
             simulated_data.append({'timestamp': dt_object, 'content_type': content_type, 'engagement_score': min(engagement_score, 1.0)})
-        print(f"[INFO] Successfully simulated {len(simulated_data)} data points from RSS feed.")
+        print(f"[INFO] Simulated {len(simulated_data)} data points from RSS feed.")
         return simulated_data
     except Exception as e:
         print(f"[ERROR] Failed to fetch or parse RSS feed: {e}.")
         return []
 
-def generate_mock_data(num_entries: int = 200) -> list:
+def generate_mock_data(num_entries: int = DEFAULT_NUM_MOCK_ENTRIES) -> list:
     """Generates sample mock data for demonstration."""
-    print(f"[INFO] Generating {num_entries} sample mock data points for demonstration.")
+    print(f"[INFO] Generating {num_entries} sample mock data points.")
     data = []
     now = datetime.datetime.now()
     content_types_list = list(CONTENT_TYPES.keys()) + ["general"]
@@ -102,7 +102,7 @@ def generate_mock_data(num_entries: int = 200) -> list:
 # --- Analysis Logic ---
 def analyze_viral_patterns(data: list) -> list:
     """Analyzes engagement patterns based on content type, hour, and day of week."""
-    print("[INFO] Analyzing viral patterns...")
+    print("[INFO] Analyzing viral patterns from data...")
     patterns = {}
     for item in data:
         key = (item['content_type'], item['timestamp'].hour, item['timestamp'].weekday())
@@ -120,15 +120,15 @@ def analyze_viral_patterns(data: list) -> list:
             'average_engagement_score': round(avg_engagement, 4),
             'data_points_count': stats['count']
         })
-    print(f"[INFO] Analysis complete. Generated {len(report_data)} pattern entries.")
+    print(f"[SUCCESS] Analysis complete. Found {len(report_data)} unique patterns.")
     return report_data
 
 def predict_optimal_time(report_data: list, target_content_type: str) -> dict or None:
     """Predicts the optimal upload time for a given content type."""
-    print(f"[INFO] Predicting optimal time for content type: '{target_content_type}'...")
+    print(f"[INFO] Predicting optimal time for '{target_content_type}'...")
     filtered_data = [item for item in report_data if item['content_type'] == target_content_type]
     if not filtered_data:
-        print(f"[WARNING] No analysis data for '{target_content_type}'. Cannot predict.")
+        print(f"[WARNING] No analysis data for '{target_content_type}'.")
         return None
 
     optimal_entry = max(filtered_data, key=lambda x: x['average_engagement_score'])
@@ -151,10 +151,9 @@ def save_notification(message: str, content_type: str = "general"):
 
 def save_viral_pattern_report(report_data: list):
     """Saves the full viral pattern report to a CSV file."""
-    filename = f"viral_pattern_report_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
     if not report_data:
         print("[WARNING] No report data to save."); return
-
+    filename = f"viral_pattern_report_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
     try:
         with open(filename, 'w', newline='', encoding='utf-8') as csvfile:
             fieldnames = report_data[0].keys()
@@ -172,33 +171,34 @@ def main():
     parser = argparse.ArgumentParser(description="ViralPulse Sentinel: Predicts optimal social media upload times.")
     parser.add_argument("--content-type", type=str, default="general", help="Target content type for prediction.")
     parser.add_argument("--data-file", type=str, help="Path to a CSV file containing social data (timestamp, content_type, engagement_score).")
-    parser.add_argument("--mock-only", action="store_true", help="Force using only mock data.")
+    parser.add_argument("--mock-only", action="store_true", help="Force using only mock data, ignoring file/RSS.")
     args = parser.parse_args()
 
-    print("\n🚀 Starting ViralPulse Sentinel...")
-
+    print("\n🚀 ViralPulse Sentinel starting...")
     social_data = []
-    data_source_info = ""
+    data_source_desc = ""
 
     if args.data_file:
+        print(f"[STEP 1/3] Attempting to load data from user-specified file: '{args.data_file}'...")
         social_data = load_data_from_csv(args.data_file)
-        if social_data: data_source_info = f"custom CSV file ({args.data_file})"
+        if social_data: data_source_desc = f"custom CSV file ({args.data_file})"
 
     if not social_data and not args.mock_only:
+        print("[STEP 2/3] No data from file. Attempting to fetch from public RSS feed...")
         social_data = fetch_and_simulate_social_data()
-        if social_data: data_source_info = "public RSS feed data (simulated)"
+        if social_data: data_source_desc = "public RSS feed (simulated)"
 
     if not social_data:
-        print("[INFO] No valid external data found or --mock-only flag active. Falling back to internal sample data.")
-        print("       지금은 샘플 데이터입니다. 본인 파일을 쓰려면 python viral_pulse_sentinel.py --data-file 내파일.csv")
+        print("[STEP 3/3] No valid external data found or --mock-only flag active. Generating mock data.")
+        print("           (지금은 샘플 데이터입니다. 본인 파일을 쓰려면 python viral_pulse_sentinel.py --data-file 내파일.csv)")
         social_data = generate_mock_data()
-        if not data_source_info: data_source_info = "internal mock data"
+        data_source_desc = "internal mock data"
 
     if not social_data:
         print("[CRITICAL] No data available for analysis. Exiting.")
         return
     
-    print(f"[INFO] Proceeding with analysis based on {data_source_info}...")
+    print(f"[INFO] Proceeding with analysis using {len(social_data)} data points from {data_source_desc}.")
 
     viral_pattern_report = analyze_viral_patterns(social_data)
     optimal_time_prediction = predict_optimal_time(viral_pattern_report, args.content_type)
@@ -206,7 +206,7 @@ def main():
     if optimal_time_prediction:
         message = (
             f"Content Type: {optimal_time_prediction['content_type'].upper()}\n"
-            f"Predicted Optimal Upload Time: {optimal_time_prediction['day_of_week']} at {optimal_time_prediction['hour_of_day']}:00 (average)\n"
+            f"Predicted Optimal Upload Time: {optimal_time_prediction['day_of_week']} at {optimal_time_prediction['hour_of_day']}:00\n"
             f"Average Engagement Score: {optimal_time_prediction['average_engagement_score']:.2f}\n"
             f"Based on {optimal_time_prediction['data_points_count']} data points."
         )
