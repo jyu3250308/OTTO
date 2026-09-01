@@ -1,10 +1,10 @@
 # [실행 환경 방어] 출력을 파일로 저장하거나 자동 실행할 때 한글 윈도우에서
 #   UnicodeEncodeError로 죽는 것을 막아줍니다. 지우지 마세요!
 import sys as _sys
-for _s in (_sys.stdout, _sys._stderr): # Changed _sys.stderr to _sys._stderr for consistency with common usage or assumed intent based on context where reconfigure is called on internal objects. If _sys.stderr is intended to be the public sys.stderr, then revert to _sys.stderr.
+for _s in (_sys.stdout, _sys.stderr): # 표준 출력 및 오류 스트림 UTF-8 재설정
     try:
         _s.reconfigure(encoding="utf-8", errors="replace")
-    except Exception:
+    except Exception: # 재설정 실패 시 무시 (환경에 따라 필요 없을 수도 있음)
         pass
 
 import requests
@@ -28,14 +28,14 @@ def analyze_hype_potential(video_title: str, video_description: str) -> dict:
     정의된 키워드와 일치하는 항목이 많을수록 높은 점수를 부여합니다.
     """
     detected_elements = []
+    # 제목과 설명에서 트렌드 키워드 감지
     for keyword in TREND_KEYWORDS:
         if keyword.lower() in video_title.lower() or keyword.lower() in video_description.lower():
             detected_elements.append(keyword)
 
-    # 감지된 요소 수에 기반한 간단한 하이프 점수 계산
+    # 감지된 요소 수에 기반한 간단한 하이프 점수 계산 및 초기 트렌드 여부 판단
     hype_score = len(detected_elements) * 10
-    # '극초기 트렌드'로 판단하는 임계값
-    is_early_trend = hype_score > 30
+    is_early_trend = hype_score > 30 # '극초기 트렌드'로 판단하는 임계값
 
     return {
         "hype_score": hype_score,
@@ -45,7 +45,7 @@ def analyze_hype_potential(video_title: str, video_description: str) -> dict:
 
 def fetch_trending_data(source_url: str) -> list:
     """지정된 URL에서 트렌드 데이터를 가져오거나, 'demo'인 경우 샘플 데이터를 반환합니다.
-    실제 웹 스크래핑/API 호출은 복잡하므로, 여기서는 성공적인 데이터 페치를 시뮬레이션합니다.
+    실제 웹 스크래핑/API 호출은 복잡하므로, 여기서는 핵심 로직에 집중하여 시뮬레이션합니다.
     """
     demo_data = [
         {"title": "My Cinematic Travel Vlog to Bali", "description": "Beautiful drone shots and lofi beats.", "url": "https://example.com/bali"},
@@ -55,41 +55,36 @@ def fetch_trending_data(source_url: str) -> list:
     ]
 
     if source_url == "demo":
-        print("\n[HypeHint Hound] '--url' 인자가 없거나 'demo'로 지정되어 샘플 데이터를 사용합니다.")
+        print("[HypeHint Hound] '--url' 인자가 없거나 'demo'로 지정되어 샘플 데이터를 사용합니다.")
         print("                 실제 데이터를 사용하려면 'python hype_hint_hound.py --url https://your-feed-url.com'처럼 실행하세요.")
         return demo_data
     else:
-        print(f"\n[HypeHint Hound] '{source_url}'에서 트렌드 데이터를 가져오는 중... (실제 웹 스크래핑은 시뮬레이션됩니다)")
+        print(f"\n[HypeHint Hound] '{source_url}'에서 트렌드 데이터를 가져오는 중...")
         try:
-            # 실제 네트워크 요청을 시뮬레이션하고 응답 상태를 확인합니다.
-            # 실제 콘텐츠 파싱 로직은 복잡성으로 인해 데모 데이터 반환으로 대체됩니다.
+            # 실제 네트워크 요청 시도 (데이터 파싱은 복잡성으로 인해 시뮬레이션)
             response = requests.get(source_url, timeout=10)
             response.raise_for_status() # 200 OK가 아니면 HTTPError 발생
 
-            print(f"[HypeHint Hound] '{source_url}'에서 데이터를 성공적으로 수신했습니다. 파싱 시뮬레이션 시작...")
-            # 실제 파싱 로직(예: RSS 피드 파싱, JSON API 응답 처리)이 여기에 구현될 수 있습니다.
-            # 이 데모에서는 일관된 결과를 위해 내부 샘플 데이터를 반환합니다.
+            print(f"[HypeHint Hound] '{source_url}'에서 데이터를 성공적으로 수신했습니다. 콘텐츠 파싱 시뮬레이션...")
+            # 실제 파싱 로직(예: RSS 피드 파싱, JSON API 응답 처리)은 이 데모의 범위를 벗어나므로,
+            # 일관된 결과를 위해 내부 샘플 데이터를 반환합니다.
             return demo_data
         except requests.exceptions.HTTPError as e:
-            print(f"[ERROR] HTTP 오류 발생 ({e.response.status_code}) - URL: {source_url}. 오류 상세: {e}")
+            print(f"[ERROR] HTTP 오류 ({e.response.status_code}) - URL: {source_url}. 상세: {e}")
             print("[HypeHint Hound] 데이터 가져오기 실패로 샘플 데이터를 사용합니다.")
-            return demo_data # HTTP 오류 시 데모 데이터 폴백
         except requests.exceptions.ConnectionError as e:
-            print(f"[ERROR] 네트워크 연결 오류 발생 - URL: {source_url}. 오류 상세: {e}")
+            print(f"[ERROR] 네트워크 연결 오류 - URL: {source_url}. 상세: {e}")
             print("[HypeHint Hound] 네트워크 문제로 샘플 데이터를 사용합니다.")
-            return demo_data # 연결 오류 시 데모 데이터 폴백
         except requests.exceptions.Timeout as e:
-            print(f"[ERROR] 요청 시간 초과 발생 - URL: {source_url}. 오류 상세: {e}")
+            print(f"[ERROR] 요청 시간 초과 - URL: {source_url}. 상세: {e}")
             print("[HypeHint Hound] 요청 시간 초과로 샘플 데이터를 사용합니다.")
-            return demo_data # 타임아웃 오류 시 데모 데이터 폴백
         except requests.exceptions.RequestException as e:
-            print(f"[ERROR] 알 수 없는 요청 오류 발생 - URL: {source_url}. 오류 상세: {e}")
+            print(f"[ERROR] 알 수 없는 요청 오류 - URL: {source_url}. 상세: {e}")
             print("[HypeHint Hound] 알 수 없는 오류로 샘플 데이터를 사용합니다.")
-            return demo_data # 기타 요청 오류 시 데모 데이터 폴백
         except Exception as e:
-            print(f"[CRITICAL ERROR] 예상치 못한 오류 발생 - URL: {source_url}. 오류 상세: {e}")
+            print(f"[CRITICAL ERROR] 예상치 못한 오류 발생 - URL: {source_url}. 상세: {e}")
             print("[HypeHint Hound] 심각한 오류 발생으로 샘플 데이터를 사용합니다.")
-            return demo_data # 예상치 못한 예외 처리
+        return demo_data # 오류 발생 시 데모 데이터 폴백
 
 def main():
     """HypeHint Hound 애플리케이션의 메인 실행 함수입니다.
@@ -150,7 +145,7 @@ def main():
         print("\n[HypeHint Hound] 현재 감지된 극초기 트렌드 시그널이 없습니다. 다음 분석을 기다립니다.")
 
     print("\n[HypeHint Hound] 매일 자동으로 트렌드를 감시하려면, 이 스크립트를 CRON (Linux/macOS) 또는 작업 스케줄러 (Windows)에 등록하세요.")
-    print("       예시: '0 3 * * * python /path/to/hype_hint_hound.py --url https://your-feed-url.com' (매일 새벽 3시 실행)\n")
+    print("                 예시: '0 3 * * * python /path/to/hype_hint_hound.py --url https://your-feed-url.com' (매일 새벽 3시 실행)\n")
     print("[HypeHint Hound] 시스템 종료.")
 
 if __name__ == "__main__":
