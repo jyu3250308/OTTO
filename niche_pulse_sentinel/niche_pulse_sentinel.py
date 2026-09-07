@@ -1,5 +1,4 @@
-# [실행 환경 방어] 출력을 파일로 저장하거나 자동 실행할 때 한글 윈도우에서
-#   UnicodeEncodeError로 죽는 것을 막아줍니다. 지우지 마세요!
+# [실행 환경 방어] 출력을 파일로 저장하거나 자동 실행할 때 한글 윈도우에서 UnicodeEncodeError로 죽는 것을 막아줍니다. 지우지 마세요!
 import sys as _sys
 for _s in (_sys.stdout, _sys.stderr):
     try:
@@ -29,7 +28,6 @@ def fetch_content_for_keywords(keywords: list[str], source_url: str = None, sour
     """지정된 키워드에 대해 웹 페이지 또는 로컬 파일에서 콘텐츠를 가져와 키워드 빈도를 계산합니다.
     데이터 소스가 없거나 실패할 경우, 데모용 샘플 데이터를 사용합니다."""
     _log_message(f"🔍 '{', '.join(keywords)}' 키워드에 대한 콘텐츠를 가져오는 중...")
-    content_counts = {keyword.lower(): 0 for keyword in keywords}
     text_content = ""
     source_type = ""
 
@@ -43,10 +41,8 @@ def fetch_content_for_keywords(keywords: list[str], source_url: str = None, sour
             _log_message(f"✅ URL '{source_url}'에서 콘텐츠를 성공적으로 가져왔습니다.")
         except requests.exceptions.Timeout:
             _log_message(f"❌ 오류: URL '{source_url}' 요청 시간 초과. 샘플 데이터로 대체합니다.")
-            source_type = ""
         except requests.exceptions.RequestException as e:
             _log_message(f"❌ 오류: URL '{source_url}'에서 콘텐츠를 가져오는 중 문제가 발생했습니다: {e}. 샘플 데이터로 대체합니다.")
-            source_type = ""
     elif source_file:
         source_type = "File"
         _log_message(f"📄 로컬 파일 '{source_file}'에서 콘텐츠 읽기 시도...")
@@ -56,18 +52,16 @@ def fetch_content_for_keywords(keywords: list[str], source_url: str = None, sour
             _log_message(f"✅ 로컬 파일 '{source_file}'에서 콘텐츠를 성공적으로 읽었습니다.")
         except FileNotFoundError:
             _log_message(f"❌ 오류: 파일 '{source_file}'을(를) 찾을 수 없습니다. 샘플 데이터로 대체합니다.")
-            source_type = ""
         except IOError as e:
             _log_message(f"❌ 오류: 파일 '{source_file}'을(를) 읽는 중 문제가 발생했습니다: {e}. 샘플 데이터로 대체합니다.")
-            source_type = ""
 
-    if not text_content:
+    if not text_content: # 데이터 소스가 없거나 실패한 경우, 데모 데이터를 사용
         source_type = "Mock Data"
         _log_message("⚠️ 데이터 소스(URL/파일)가 없거나 실패하여 데모용 샘플 데이터를 사용합니다. 본인 데이터를 사용하려면 `--url <URL>` 또는 `--file <경로>` 인자를 지정하세요.")
+        # 실제와 유사한 샘플 데이터
         text_content = "the latest trend is ai art, everyone is talking about ai. ai is everywhere. but now, crypto is back! crypto trading, crypto news, crypto updates! blockchain technology is also seeing a resurgence. ai and blockchain will dominate. metaverse is quiet, but vr technology is still growing. ai art is getting saturated, too much ai art. people are tired of ai art. the new wave is green tech solutions. sustainable energy is the future. quantum computing is still a niche but growing rapidly."
 
-    for keyword in keywords:
-        content_counts[keyword.lower()] = text_content.count(keyword.lower())
+    content_counts = {keyword.lower(): text_content.count(keyword.lower()) for keyword in keywords}
     _log_message(f"✅ 키워드 빈도 계산 완료 (데이터 소스: {source_type}).")
     return content_counts
 
@@ -83,12 +77,16 @@ def load_history() -> dict[str, list[dict]]:
         with open(HISTORY_FILE, 'r', newline='', encoding='utf-8') as f:
             reader = csv.DictReader(f)
             for row in reader:
-                keyword = row['keyword'].lower()
-                history.setdefault(keyword, []).append({'timestamp': row['timestamp'], 'count': int(row['count'])})
+                # 필요한 필드가 모두 있는지 확인
+                if 'keyword' in row and 'timestamp' in row and 'count' in row:
+                    keyword = row['keyword'].lower()
+                    history.setdefault(keyword, []).append({'timestamp': row['timestamp'], 'count': int(row['count'])})
+                else:
+                    _log_message(f"⚠️ 이력 파일 '{HISTORY_FILE}'의 한 행이 유효하지 않습니다. 스킵: {row}")
         _log_message(f"✅ 이력 파일 '{HISTORY_FILE}'에서 데이터를 성공적으로 로드했습니다.")
     except (FileNotFoundError, IOError, ValueError, KeyError) as e:
         _log_message(f"❌ 경고: 이력 파일 '{HISTORY_FILE}' 로드 중 오류 발생: {e}. 기존 이력은 무시하고 새로 시작합니다.")
-        history = {}
+        history = {} # 오류 발생 시 이력을 초기화하여 새롭게 시작
     return history
 
 def save_history(history: dict[str, list[dict]], current_data: dict[str, int]):
@@ -105,7 +103,11 @@ def save_history(history: dict[str, list[dict]], current_data: dict[str, int]):
             writer.writeheader()
             for keyword, data_list in history.items():
                 for data_entry in data_list:
-                    writer.writerow({'timestamp': data_entry['timestamp'], 'keyword': keyword, 'count': data_entry['count']})
+                    # 데이터 무결성 검증: 필요한 키가 모두 있는지 확인
+                    if all(k in data_entry for k in ['timestamp', 'count']):
+                        writer.writerow({'timestamp': data_entry['timestamp'], 'keyword': keyword, 'count': data_entry['count']})
+                    else:
+                        _log_message(f"⚠️ 이력 데이터 '{keyword}'의 한 항목이 유효하지 않습니다. 스킵: {data_entry}")
         _log_message(f"✅ 이력 파일 '{HISTORY_FILE}'에 데이터 저장을 완료했습니다.")
     except IOError as e:
         _log_message(f"❌ 오류: 이력 파일 '{HISTORY_FILE}' 저장 중 문제가 발생했습니다: {e}.")
@@ -116,7 +118,9 @@ def analyze_niche_pulse(current_counts: dict[str, int], history: dict[str, list[
     analysis_results = []
     for keyword, current_count in current_counts.items():
         status = "안정 (Stable)"
+        # 해당 키워드의 과거 출현 횟수만 필터링
         historical_counts = [entry['count'] for entry in history.get(keyword, []) if 'count' in entry]
+        # 과거 데이터가 있는 경우 평균 계산, 없는 경우 0
         avg_historical_count = sum(historical_counts) / len(historical_counts) if historical_counts else 0
 
         if current_count >= SATURATION_THRESHOLD:
@@ -124,12 +128,12 @@ def analyze_niche_pulse(current_counts: dict[str, int], history: dict[str, list[
             _log_message(f"  -> '{keyword}': 현재 {current_count}회 (포화 임계치 {SATURATION_THRESHOLD}회 이상)")
         elif avg_historical_count > 0 and current_count < avg_historical_count * DECREASE_FACTOR_THRESHOLD:
             status = "관심도 감소 (Decreasing)"
-            _log_message(f"  -> '{keyword}': 현재 {current_count}회 (평균 {avg_historical_count:.2f}회 대비 {DECREASE_FACTOR_THRESHOLD*100:.0f}% 미만)")
+            _log_message(f"  -> '{keyword}': 현재 {current_count}회 (이전 평균 {avg_historical_count:.2f}회 대비 {DECREASE_FACTOR_THRESHOLD*100:.0f}% 미만)")
         elif current_count > avg_historical_count:
             status = "관심도 상승 (Rising)"
-            _log_message(f"  -> '{keyword}': 현재 {current_count}회 (평균 {avg_historical_count:.2f}회 대비 상승)")
+            _log_message(f"  -> '{keyword}': 현재 {current_count}회 (이전 평균 {avg_historical_count:.2f}회 대비 상승)")
         else:
-             _log_message(f"  -> '{keyword}': 현재 {current_count}회 (평균 {avg_historical_count:.2f}회)")
+             _log_message(f"  -> '{keyword}': 현재 {current_count}회 (이전 평균 {avg_historical_count:.2f}회)")
 
         analysis_results.append({
             'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
@@ -180,6 +184,9 @@ def main():
 
     # 1. 콘텐츠 가져오기 및 키워드 빈도 계산
     current_keyword_counts = fetch_content_for_keywords(keywords_list, args.url, args.file)
+    if not current_keyword_counts:
+        _log_message("❌ 오류: 키워드 빈도를 계산할 콘텐츠를 가져오지 못했습니다. 프로그램을 종료합니다.")
+        _sys.exit(1)
 
     # 2. 이력 데이터 로드 및 현재 데이터 저장
     history_data = load_history()
