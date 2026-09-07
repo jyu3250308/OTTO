@@ -1,0 +1,224 @@
+# [실행 환경 방어] 출력을 파일로 저장하거나 자동 실행할 때 한글 윈도우에서
+#   UnicodeEncodeError로 죽는 것을 막아줍니다. 지우지 마세요!
+import sys as _sys
+for _s in (_sys.stdout, _sys.stderr):
+    try:
+        _s.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
+
+import argparse
+import requests
+import time
+import os
+from datetime import datetime
+import csv
+
+# --- 전역 상수 및 설정 --- #
+SATURATION_THRESHOLD = 50  # 키워드 출현 빈도 포화 임계치. 이 값 이상이면 포화로 간주.
+DECREASE_FACTOR_THRESHOLD = 0.8  # 관심도 감소 임계치. 이전 평균 대비 80% 미만일 경우 감소로 간주.
+OUTPUT_REPORT_FILE = "niche_pulse_sentinel_report.csv" # 분석 보고서 파일명
+HISTORY_FILE = "niche_pulse_history.csv"             # 키워드 출현 이력 저장 파일명
+REQUEST_TIMEOUT = 10                                 # HTTP 요청 타임아웃 (초)
+
+# --- 보조 함수 --- #
+def _log_message(message: str):
+    """타임스탬프와 함께 콘솔에 메시지를 출력합니다."""
+    print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] {message}")
+
+def fetch_content_for_keywords(keywords: list[str], source_url: str = None, source_file: str = None) -> dict:
+    """지정된 키워드에 대해 웹 페이지 또는 로컬 파일에서 콘텐츠를 가져와 키워드 빈도를 계산합니다.
+    데이터 소스가 없거나 실패할 경우, 데모용 샘플 데이터를 사용합니다."""
+    _log_message(f"'{', '.join(keywords)}' 키워드에 대한 콘텐츠를 가져오는 중...")
+    content_counts = {keyword.lower(): 0 for keyword in keywords}
+    text_content = ""
+    source_type = "" # 데이터 소스 유형 (URL, File, Mock)
+
+    if source_url:
+        source_type = "URL"
+        try:
+            _log_message(f"URL '{source_url}'에서 콘텐츠 요청 중...")
+            response = requests.get(source_url, timeout=REQUEST_TIMEOUT)
+            response.raise_for_status() # HTTP 오류 발생 시 예외 발생
+            text_content = response.text.lower()
+            _log_message(f"URL '{source_url}'에서 콘텐츠를 성공적으로 가져왔습니다.")
+        except requests.exceptions.Timeout:
+            _log_message(f"오류: URL '{source_url}' 요청 시간 초과. 샘플 데이터로 대체합니다.")
+            source_type = ""
+        except requests.exceptions.RequestException as e:
+            _log_message(f"오류: URL '{source_url}'에서 콘텐츠를 가져오는 중 문제가 발생했습니다: {e}. 샘플 데이터로 대체합니다.")
+            source_type = ""
+    elif source_file:
+        source_type = "File"
+        try:
+            _log_message(f"로컬 파일 '{source_file}'에서 콘텐츠 읽는 중...")
+            with open(source_file, 'r', encoding='utf-8') as f:
+                text_content = f.read().lower()
+            _log_message(f"로컬 파일 '{source_file}'에서 콘텐츠를 성공적으로 읽었습니다.")
+        except FileNotFoundError:
+            _log_message(f"오류: 파일 '{source_file}'을(를) 찾을 수 없습니다. 샘플 데이터로 대체합니다.")
+            source_type = ""
+        except IOError as e:
+            _log_message(f"오류: 파일 '{source_file}'을(를) 읽는 중 문제가 발생했습니다: {e}. 샘플 데이터로 대체합니다.")
+            source_type = ""
+
+    if not text_content:
+        source_type = "Mock Data"
+        _log_message("데이터 소스(URL/파일)가 없거나 실패하여 데모용 샘플 데이터를 사용합니다. 본인 데이터를 사용하려면 `--url <URL>` 또는 `--file <경로>` 인자를 지정하세요.")
+        text_content = (
+            "The latest trend is AI art, everyone is talking about AI. AI is everywhere. "
+            "But now, crypto is back! Crypto trading, crypto news, crypto updates! "
+            "Blockchain technology is also seeing a resurgence. AI and blockchain will dominate. "
+            "Metaverse is quiet, but VR technology is still growing. "
+            "AI art is getting saturated, too much AI art. People are tired of AI art. "
+            "The new wave is green tech solutions. Sustainable energy is the future. "
+            "Quantum computing is still a niche but growing rapidly."
+        ).lower()
+
+    # 키워드 빈도 계산
+    for keyword in keywords:
+        content_counts[keyword.lower()] = text_content.count(keyword.lower())
+    
+    _log_message(f"키워드 빈도 계산 완료 (데이터 소스: {source_type}).")
+    return content_counts
+
+def load_history() -> dict[str, list[dict]]:
+    """이력 파일에서 키워드별 과거 데이터를 로드합니다."""
+    history = {} # {keyword: [{'timestamp': '...', 'count': N}, ...]}
+    if not os.path.exists(HISTORY_FILE):
+        _log_message(f"이력 파일 '{HISTORY_FILE}'이(가) 존재하지 않습니다. 새로 생성합니다.")
+        return history
+
+    try:
+        with open(HISTORY_FILE, 'r', newline='', encoding='utf-8') as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                keyword = row['keyword'].lower()
+                if keyword not in history:
+                    history[keyword] = []
+                history[keyword].append({
+                    'timestamp': row['timestamp'],
+                    'count': int(row['count'])
+                })
+        _log_message(f"이력 파일 '{HISTORY_FILE}'에서 데이터를 성공적으로 로드했습니다.")
+    except (FileNotFoundError, IOError, ValueError) as e:
+        _log_message(f"경고: 이력 파일 '{HISTORY_FILE}' 로드 중 오류 발생: {e}. 기존 이력은 무시하고 새로 시작합니다.")
+        history = {}
+    return history
+
+def save_history(history: dict[str, list[dict]], current_data: dict[str, int]):
+    """현재 키워드 빈도를 이력에 추가하고 파일에 저장합니다."""
+    _log_message(f"이력 파일 '{HISTORY_FILE}'에 현재 데이터를 저장하는 중...")
+    current_timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    for keyword, count in current_data.items():
+        if keyword not in history:
+            history[keyword] = []
+        history[keyword].append({'timestamp': current_timestamp, 'count': count})
+
+    # 이력을 파일에 쓰기
+    try:
+        with open(HISTORY_FILE, 'w', newline='', encoding='utf-8') as f:
+            fieldnames = ['timestamp', 'keyword', 'count']
+            writer = csv.DictWriter(f, fieldnames=fieldnames)
+            writer.writeheader()
+            for keyword, data_list in history.items():
+                for data_entry in data_list:
+                    writer.writerow({
+                        'timestamp': data_entry['timestamp'],
+                        'keyword': keyword,
+                        'count': data_entry['count']
+                    })
+        _log_message(f"이력 파일 '{HISTORY_FILE}'에 데이터 저장을 완료했습니다.")
+    except IOError as e:
+        _log_message(f"오류: 이력 파일 '{HISTORY_FILE}' 저장 중 문제가 발생했습니다: {e}.")
+
+def analyze_niche_pulse(current_counts: dict[str, int], history: dict[str, list[dict]]) -> list[dict]:
+    """키워드별 틈새시장(niche)의 동향(pulse)을 분석합니다."""
+    _log_message("키워드 틈새시장 동향 분석 시작...")
+    analysis_results = []
+    for keyword, current_count in current_counts.items():
+        status = "안정"
+        historical_counts = [entry['count'] for entry in history.get(keyword, [])]
+        
+        avg_historical_count = sum(historical_counts) / len(historical_counts) if historical_counts else 0
+
+        # 포화 상태 감지
+        if current_count >= SATURATION_THRESHOLD:
+            status = "포화 (Saturated)"
+            _log_message(f"-> '{keyword}': 현재 {current_count}회 (포화 임계치 {SATURATION_THRESHOLD}회 이상)")
+        
+        # 관심도 감소 감지 (이전 데이터가 있을 경우에만)
+        if avg_historical_count > 0 and current_count < avg_historical_count * DECREASE_FACTOR_THRESHOLD:
+            status = "관심도 감소 (Decreasing)"
+            _log_message(f"-> '{keyword}': 현재 {current_count}회 (평균 {avg_historical_count:.2f}회 대비 {DECREASE_FACTOR_THRESHOLD*100:.0f}% 미만)")
+        elif current_count > avg_historical_count and status == "안정": # 상승 감지
+            status = "관심도 상승 (Rising)"
+            _log_message(f"-> '{keyword}': 현재 {current_count}회 (평균 {avg_historical_count:.2f}회 대비 상승)")
+        elif status == "안정":
+             _log_message(f"-> '{keyword}': 현재 {current_count}회 (평균 {avg_historical_count:.2f}회)")
+
+        analysis_results.append({
+            'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+            'keyword': keyword,
+            'current_count': current_count,
+            'historical_average': round(avg_historical_count, 2),
+            'status': status
+        })
+    _log_message("키워드 틈새시장 동향 분석 완료.")
+    return analysis_results
+
+def generate_report(results: list[dict]):
+    """분석 결과를 CSV 보고서 파일로 생성합니다."""
+    _log_message(f"분석 보고서 '{OUTPUT_REPORT_FILE}' 생성 중...")
+    if not results:
+        _log_message("보고서로 작성할 분석 결과가 없습니다.")
+        return
+
+    try:
+        with open(OUTPUT_REPORT_FILE, 'w', newline='', encoding='utf-8') as f:
+            fieldnames = ['timestamp', 'keyword', 'current_count', 'historical_average', 'status']
+            writer = csv.DictWriter(f, fieldnames=fieldnames)
+            writer.writeheader()
+            writer.writerows(results)
+        _log_message(f"보고서 '{OUTPUT_REPORT_FILE}'를 성공적으로 생성했습니다.")
+    except IOError as e:
+        _log_message(f"오류: 보고서 파일 '{OUTPUT_REPORT_FILE}' 저장 중 문제가 발생했습니다: {e}.")
+
+# --- 메인 실행 로직 --- #
+def main():
+    """Niche Pulse Sentinel 프로그램의 메인 함수."""
+    _log_message("Niche Pulse Sentinel 프로그램 시작.")
+    parser = argparse.ArgumentParser(description="키워드 트렌드를 분석하여 틈새시장 동향을 감지합니다.")
+    parser.add_argument('-k', '--keywords', type=str, required=True,
+                        help="분석할 키워드를 쉼표로 구분하여 입력하세요 (예: 'AI art,crypto,blockchain').")
+    parser.add_argument('-u', '--url', type=str, default=None,
+                        help="콘텐츠를 가져올 웹 페이지 URL.")
+    parser.add_argument('-f', '--file', type=str, default=None,
+                        help="콘텐츠를 가져올 로컬 파일 경로.")
+    
+    args = parser.parse_args()
+
+    keywords_list = [k.strip() for k in args.keywords.split(',') if k.strip()]
+    if not keywords_list:
+        _log_message("오류: 분석할 키워드가 제공되지 않았습니다. -k 또는 --keywords 옵션을 사용하세요.")
+        _sys.exit(1)
+
+    _log_message(f"분석 대상 키워드: {', '.join(keywords_list)}")
+
+    # 1. 콘텐츠 가져오기 및 키워드 빈도 계산
+    current_keyword_counts = fetch_content_for_keywords(keywords_list, args.url, args.file)
+
+    # 2. 이력 데이터 로드 및 현재 데이터 저장
+    history_data = load_history()
+    save_history(history_data, current_keyword_counts)
+
+    # 3. 틈새시장 동향 분석
+    analysis_results = analyze_niche_pulse(current_keyword_counts, history_data)
+
+    # 4. 보고서 생성
+    generate_report(analysis_results)
+
+    _log_message("Niche Pulse Sentinel 프로그램 종료.")
+
+if __name__ == '__main__':
+    main()
